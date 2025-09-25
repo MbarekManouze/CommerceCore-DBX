@@ -22,6 +22,7 @@ export const singIn = async (req: Request, res:Response) => {
         res.json("email or password is missing").status(404);
 }
 
+
 export const getUsers = async (req:Request, res:Response) => {
     const users = await userService.getAllUsers();
     res.json(users);
