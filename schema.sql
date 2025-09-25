@@ -6,10 +6,11 @@ CREATE SCHEMA auth;
 CREATE TABLE auth.users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(50) UNIQUE NOT NULL,
-    username VARCHAR(20) NOT NULL,
+    email_verified BOOLEAN DEFAULT false,
+    username VARCHAR(20) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT now(),
-    updated_at TIMESTAMP DEFAULT now()
+    updated_at TIMESTAMP
 );
 
 CREATE TABLE auth.user_role (
@@ -34,18 +35,18 @@ CREATE TABLE auth.addresses (
 );
 
 
--- CATALOG SCHEMA
+-- register SCHEMA
 
-CREATE SCHEMA catalog;
+CREATE SCHEMA register;
 
-CREATE TABLE catalog.categories (
+CREATE TABLE register.categories (
   category_id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL
 );
 
-CREATE TABLE catalog.products (
+CREATE TABLE register.products (
   product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category_id INT REFERENCES catalog.categories(category_id) ON DELETE SET NULL,
+  category_id INT REFERENCES register.categories(category_id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   description TEXT,
   price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
@@ -54,8 +55,8 @@ CREATE TABLE catalog.products (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE catalog.product_inventory (
-  product_id UUID PRIMARY KEY REFERENCES catalog.products(product_id) ON DELETE CASCADE,
+CREATE TABLE register.product_inventory (
+  product_id UUID PRIMARY KEY REFERENCES register.products(product_id) ON DELETE CASCADE,
   stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
   last_updated TIMESTAMPTZ DEFAULT now()
 );
@@ -77,7 +78,7 @@ CREATE TABLE sales.orders (
 
 CREATE TABLE sales.order_items (
     order_id UUID REFERENCES sales.orders(order_id),
-    product_id UUID REFERENCES catalog.products(product_id),
+    product_id UUID REFERENCES register.products(product_id),
     quantity INT check (quantity > 0),
     price NUMERIC(10, 2),
     total NUMERIC(10, 2) generated always as (quantity * price) stored,
@@ -111,5 +112,15 @@ CREATE TABLE payments.payments (
 CREATE SCHEMA shipping;
 
 CREATE TABLE shipping.shipment_statuses (
+    status_id SERIAL PRIMARY KEY,
+    status TEXT UNIQUE NOT NULL
+);
 
-)
+CREATE TABLE shipping.shipments (
+    shipment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID UNIQUE REFERENCES sales.orders(order_id),
+    status_id INT REFERENCES shipping.shipment_statuses(status_id),
+      tracking_number TEXT,
+    shipped_at TIMESTAMP,
+    delivered_at TIMESTAMP
+);
