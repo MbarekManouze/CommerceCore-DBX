@@ -30,8 +30,16 @@ export class userService {
         return null;
     }
 
-    static async getAllUsers() {
+    static async getAllUsers(limit: number, offset: number):  Promise<{ users: User[] | null; total: number }>{
 
+        // const users = UserRepository.findall(limit, offset);
+        // const total = UserRepository.countall();
+        const [users, total] = await Promise.all([
+            UserRepository.findall(limit, offset),
+            UserRepository.countall()
+        ]);
+
+        return  { users, total: total ?? 0 };
     }
 
     static async getUser() {
@@ -39,6 +47,8 @@ export class userService {
     }
 
     static async updateUser(updates: UserUpdate) {
+
+        
 
     }
 

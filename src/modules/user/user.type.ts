@@ -1,5 +1,9 @@
 import { UUID } from "crypto";
 
+// export interface totalUsers {
+//     total: number
+// };
+
 export interface User {
     id: UUID,
     email: string,

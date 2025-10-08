@@ -1,16 +1,24 @@
 import { QueryResult } from "pg";
 import pool from "../../db/config";
 import { UserQueries } from "./user.queries";
-import { User, UserUpdate } from "./user.type";
+import {User, UserUpdate } from "./user.type";
 import { UUID } from "crypto";
 import { hashPassword } from "../../utils/passwords";
 export class UserRepository {
     
-    static async findall (limit: number, offset: number) {
+    static async countall(): Promise<number | null> {
+        
+        const countQuery = UserQueries.countall();
+        const total = await pool.query<{ total: number }>(countQuery);
+
+        return total.rows[0].total || null;
+    }
+
+    static async findall (limit: number, offset: number): Promise<User[] | null> {
         const query = UserQueries.findAll(limit, offset);
         const user : QueryResult<User> = await pool.query(query);
 
-        return user.rows[0] || null;
+        return user.rows || null;
     }
     
     static async findOne_email (email : string): Promise<User | null> {

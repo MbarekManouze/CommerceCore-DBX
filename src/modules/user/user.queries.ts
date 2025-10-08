@@ -4,13 +4,15 @@ import { UUID } from "crypto";
 
 export const UserQueries = {
 
+    countall: () => SQL`SELECT COUNT(*) AS total from users;`,
+
     findById: (id: UUID) => SQL`SELECT * FROM users WHERE user_id = ${id};`,
 
     findByEmail: (email: string) => SQL`SELECT * FROM users WHERE email = ${email};`,
 
     findByUsername: (username: string) => SQL`SELECT * FROM users WHERE username = ${username};`,
 
-    findAll: (offset: number, limit: number) => SQL`SELECT * FROM users LIMIT ${limit} OFFSET ${offset};`,
+    findAll: (offset: number, limit: number) => SQL`SELECT * FROM users ORDER BY created_at LIMIT ${limit} OFFSET ${offset};`,
 
     createUser: (data: UserUpdate) => SQL`
         INSERT INTO users (email, username, password) 
