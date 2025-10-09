@@ -50,8 +50,10 @@ export class UserRepository {
     }
     
 
-    static async update () {
-
+    static async update (id: UUID, data: UserUpdate): Promise<User | null> {
+        const query = UserQueries.updateUser(id, data);
+        const resposne : QueryResult<User> = await pool.query(query);
+        return resposne.rows[0] || null;
     }
 
     static async delete () {

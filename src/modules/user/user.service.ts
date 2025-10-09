@@ -1,3 +1,4 @@
+import { UUID } from "crypto";
 import { verifyPassword } from "../../utils/passwords";
 import { UserRepository } from "./user.repository";
 import { RegisterResponse, signin, User, UserUpdate } from "./user.type";
@@ -42,15 +43,15 @@ export class userService {
         return  { users, total: total ?? 0 };
     }
 
-    static async getUser() {
+    static async updateUser(id: UUID, updates: UserUpdate) : Promise<User | null>{
+        const data = await UserRepository.update(id, updates);
+        return data || null;
+    }
+
+    static async getUser(id: UUID) {
 
     }
 
-    static async updateUser(updates: UserUpdate) {
-
-        
-
-    }
 
     static async email_verification() {
 

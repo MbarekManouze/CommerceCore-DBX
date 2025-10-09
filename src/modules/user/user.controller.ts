@@ -1,6 +1,7 @@
 import { Request, RequestParamHandler, Response } from "express";
 import { userService } from "./user.service";
 import { signin, UserUpdate } from "./user.type";
+import { number } from "zod";
 
 export const singUp = async (req: Request, res:Response) => {
     const body : UserUpdate = req.body;
@@ -34,16 +35,24 @@ export const getUsers = async (req:Request, res:Response) => {
 }
 
 export const getUser = async (req: Request, res: Response) => {
-    const user = await userService.getUser();
-    res.json(user);
+    const id = req.params.id;
+    if (id) {
+        const user = await userService.getUser(id);
+        res.json(user);
+    }
+    res.json("id not found in url").status(400);
 }
 
 
 export const updateUser = async (req: Request, res: Response) => {
-    const body = req.body;
-    const data = await userService.updateUser(body);
-
-    res.json(data);
+    const id = req.params.id;
+    if (id) {
+        const body = req.body;
+        const data = await userService.updateUser(id, body);
+    
+        res.json(data).status(202);
+    }
+    res.json("id not found in url").status(400);
 }
 
 export const verify_email = async (req: Request, res: Response) => {
