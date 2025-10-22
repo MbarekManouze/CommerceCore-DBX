@@ -17,7 +17,7 @@ export class userService {
                 return {msg: "email already exists", status: false};
         } else {
             const user = await UserRepository.create(user_data);
-            if (user.id)
+            if (user?.id)
                 return {msg: "Client created succesfully", status: true};
         }
 
@@ -43,13 +43,14 @@ export class userService {
         return  { users, total: total ?? 0 };
     }
 
-    static async updateUser(id: UUID, updates: UserUpdate) : Promise<User | null>{
+    static async updateUser(id: string, updates: UserUpdate) : Promise<User | null>{
         const data = await UserRepository.update(id, updates);
         return data || null;
     }
 
-    static async getUser(id: UUID) {
-
+    static async getUser(id: string): Promise<User | null> {
+        const data = await UserRepository.findOne_id(id);
+        return data || null;
     }
 
 

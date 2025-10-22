@@ -1,0 +1,11 @@
+-- 001-init.sql
+
+-- Enable extensions
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Create schemas
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS register;
+CREATE SCHEMA IF NOT EXISTS sales;
+CREATE SCHEMA IF NOT EXISTS payments;
+CREATE SCHEMA IF NOT EXISTS shipping;

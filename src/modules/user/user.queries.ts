@@ -1,12 +1,13 @@
 import SQL, { SQLStatement } from "sql-template-strings";
-import { UserUpdate } from "./user.type";
+import { Userinfos, UserUpdate } from "./user.type";
 import { UUID } from "crypto";
+import { userInfo } from "os";
 
 export const UserQueries = {
 
     countall: () => SQL`SELECT COUNT(*) AS total from users;`,
 
-    findById: (id: UUID) => SQL`SELECT * FROM users WHERE user_id = ${id};`,
+    findById: (id: string) => SQL`SELECT * FROM users WHERE user_id = ${id};`,
 
     findByEmail: (email: string) => SQL`SELECT * FROM users WHERE email = ${email};`,
 
@@ -14,13 +15,25 @@ export const UserQueries = {
 
     findAll: (offset: number, limit: number) => SQL`SELECT * FROM users ORDER BY created_at LIMIT ${limit} OFFSET ${offset};`,
 
-    createUser: (data: UserUpdate) => SQL`
+    createUser: (data: Userinfos) => SQL`
         INSERT INTO users (email, username, password) 
         VALUES (${data.email}, ${data.username}, ${data.password})
         RETURNING *;
     `,
 
-    updateUser: (id: UUID, data: UserUpdate) => {
+    createUserRole: (data: Userinfos, UserId: string) => SQL`
+        INSERT INTO user_role (user_id, roles)
+        VALUES (${UserId}, ${data.role})
+        RETURNING roles;
+    `,
+
+    createUserAddress: (data: Userinfos, UserId: string) => SQL`
+        INSERT INTO addresses (user_id, full_name, phone, street, city, state, postal_code, country)
+        VALUES (${UserId}, ${data.full_name}, ${data.phone}, ${data.street}, ${data.city}, ${data.state}, ${data.postal_code}, ${data.country})
+        RETURNING address_id;
+    `,
+
+    updateUser: (id: string, data: UserUpdate) => {
         const query = SQL`UPDATE users SET `;
         const fields: SQLStatement[] = [];
     
@@ -39,5 +52,5 @@ export const UserQueries = {
         return query;
     },
 
-    deleteUser: (id: UUID) => SQL`DELETE FROM users WHERE user_id = ${id};`
+    deleteUser: (id: string) => SQL`DELETE FROM users WHERE user_id = ${id};`
 }

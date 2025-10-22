@@ -12,6 +12,21 @@ export interface User {
     createda_at: Date
 };
 
+export interface Userinfos {
+    email?: string,
+    username?: string,
+    password?: string,
+    role?: string,
+    full_name?: string,
+    phone?: string,
+    street?: string,
+    city?: string,
+    state?: string,
+    postal_code?: string,
+    country?: string,
+    // is_default?: boolean
+}
+
 export interface UserUpdate {
     email?: string,
     email_verified?: boolean,

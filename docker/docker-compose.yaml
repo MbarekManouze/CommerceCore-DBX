@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17
+    container_name: app_db
+    restart: always
+    environment:
+      POSTGRES_USER: dbuser
+      POSTGRES_PASSWORD: dbpassword
+      POSTGRES_DB: myapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbuser -d myapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # app:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: api_app
+  #   restart: always
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   environment:
+  #     NODE_ENV: development
+  #     DATABASE_URL: postgres://dbuser:dbpassword@db:5432/myapp
+  #   volumes:
+  #     - .:/usr/src/app
+  #   command: npm run dev
+
+volumes:
+  db_data:

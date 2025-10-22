@@ -14,10 +14,9 @@ CREATE TABLE auth.users (
 );
 
 CREATE TABLE auth.user_role (
-    role_id UUID PRIMARY KEY gen_random_uuid(),
     user_id UUID REFERENCES auth.user(user_id) on DELETE CASCADE,
     roles TEXT NOT NULL CHECK (roles IN ('costumer', 'admin', 'manager')),
-    UNIQUE(user_id, role_id)
+    UNIQUE(user_id, roles)
 );
 
 

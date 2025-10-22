@@ -1,10 +1,10 @@
 import { Request, RequestParamHandler, Response } from "express";
 import { userService } from "./user.service";
-import { signin, UserUpdate } from "./user.type";
+import { signin, Userinfos, UserUpdate } from "./user.type";
 import { number } from "zod";
 
 export const singUp = async (req: Request, res:Response) => {
-    const body : UserUpdate = req.body;
+    const body : Userinfos = req.body;
     if (body.email && body.password && body.username) {
         const result = await userService.register(body);
         res.json(result).status(200);
@@ -23,6 +23,9 @@ export const singIn = async (req: Request, res:Response) => {
         res.json("email or password is missing").status(404);
 }
 
+// export const userInfos = async (req: Request, res: Response) => {
+//     const body : 
+// }
 
 export const getUsers = async (req:Request, res:Response) => {
 
@@ -56,6 +59,8 @@ export const updateUser = async (req: Request, res: Response) => {
 }
 
 export const verify_email = async (req: Request, res: Response) => {
+
+    // last thing to work on in User APIs
 
 }
 

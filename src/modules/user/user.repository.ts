@@ -4,6 +4,7 @@ import { UserQueries } from "./user.queries";
 import {User, UserUpdate } from "./user.type";
 import { UUID } from "crypto";
 import { hashPassword } from "../../utils/passwords";
+
 export class UserRepository {
     
     static async countall(): Promise<number | null> {
@@ -29,7 +30,7 @@ export class UserRepository {
         return user.rows[0] || null;
     }
     
-    static async findOne_id (id : UUID): Promise<User> {
+    static async findOne_id (id : string): Promise<User | null> {
         const query = UserQueries.findById(id);
         const user : QueryResult<User> = await pool.query(query);
 
@@ -42,15 +43,29 @@ export class UserRepository {
         return user.rows[0] || null;
     }
 
-    static async create (user_data): Promise<User> {
+    static async create (user_data): Promise<User | null> {
         user_data.password = await hashPassword(user_data.password);
-        const query = UserQueries.createUser(user_data);
-        const user : QueryResult<User> = await pool.query(query);
+        
+        const userquery = UserQueries.createUser(user_data);
+        const user : QueryResult<User> = await pool.query(userquery);
+        const user_id = user.rows[0].id;
+        if (!user_id)
+            return null;
+
+        const rolequery = UserQueries.createUserRole(user_data, user_id);
+        const role : QueryResult<String> = await pool.query(rolequery);
+
+        const addressquery = UserQueries.createUserAddress(user_data, user_id);
+        const address : QueryResult<Number> = await pool.query(addressquery);
+
+        if (!role || !address)
+            return null;
+
         return user.rows[0] || null;
     }
     
 
-    static async update (id: UUID, data: UserUpdate): Promise<User | null> {
+    static async update (id: string, data: UserUpdate): Promise<User | null> {
         const query = UserQueries.updateUser(id, data);
         const resposne : QueryResult<User> = await pool.query(query);
         return resposne.rows[0] || null;
