@@ -5,12 +5,9 @@ import { number } from "zod";
 
 export const singUp = async (req: Request, res:Response) => {
     const body : Userinfos = req.body;
-    if (body.email && body.password && body.username) {
-        const result = await userService.register(body);
-        res.json(result).status(200);
-    }
-    else
-        res.json("email ,password or username is missing").status(404);
+    const result = await userService.register(body);
+    res.json(result).status(200);
+    // res.json(body);
 }
 
 export const singIn = async (req: Request, res:Response) => {
@@ -35,6 +32,7 @@ export const getUsers = async (req:Request, res:Response) => {
 
     const users = await userService.getAllUsers(limit, offset);
     res.json(users);
+    // res.json("khdaam");
 }
 
 export const getUser = async (req: Request, res: Response) => {

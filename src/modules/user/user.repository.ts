@@ -23,7 +23,6 @@ export class UserRepository {
     }
     
     static async findOne_email (email : string): Promise<User | null> {
-        
         const query = UserQueries.findByEmail(email);
         const user : QueryResult<User> = await pool.query(query);
 
@@ -43,7 +42,7 @@ export class UserRepository {
         return user.rows[0] || null;
     }
 
-    static async create (user_data): Promise<User | null> {
+    static async create (user_data: any): Promise<User | null> {
         user_data.password = await hashPassword(user_data.password);
         
         const userquery = UserQueries.createUser(user_data);
