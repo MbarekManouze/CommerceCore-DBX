@@ -15,21 +15,34 @@ export const UserQueries = {
 
     findAll: (offset: number, limit: number) => SQL`SELECT * FROM users ORDER BY created_at LIMIT ${limit} OFFSET ${offset};`,
 
-    createUser: (data: Userinfos) => SQL`
-        INSERT INTO users (email, username, password) 
-        VALUES (${data.email}, ${data.username}, ${data.password})
+    createUser: (email: string, username: string, password: string) => SQL`
+        INSERT INTO users (email, username, password_hash) 
+        VALUES (${email}, ${username}, ${password})
         RETURNING *;
     `,
-
-    createUserRole: (data: Userinfos, UserId: string) => SQL`
+    
+    createUserRole: (role: Userinfos, userId: string) => SQL`
         INSERT INTO user_role (user_id, roles)
-        VALUES (${UserId}, ${data.role})
+        VALUES (${userId}, ${role})
         RETURNING roles;
     `,
 
-    createUserAddress: (data: Userinfos, UserId: string) => SQL`
+    updateUserRole: (userId: string, role: string) => SQL`
+        UPDATE user_role
+        SET roles = ${role}
+        WHERE user_id = ${userId};
+    `,
+
+    createUserAddress: (full_name: string,
+        phone: string,
+        street: string,
+        city: string,
+        state: string,
+        postal_code: string,
+        country: string,
+        userId: string) => SQL`
         INSERT INTO addresses (user_id, full_name, phone, street, city, state, postal_code, country)
-        VALUES (${UserId}, ${data.full_name}, ${data.phone}, ${data.street}, ${data.city}, ${data.state}, ${data.postal_code}, ${data.country})
+        VALUES (${userId}, ${full_name}, ${phone}, ${street}, ${city}, ${state}, ${postal_code}, ${country})
         RETURNING address_id;
     `,
 

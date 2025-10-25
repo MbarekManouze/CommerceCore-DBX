@@ -5,11 +5,19 @@ import { UUID } from "crypto";
 // };
 
 export interface User {
-    id: UUID,
+    user_id: UUID,
     email: string,
     username: string,
-    password?: string,
+    password_hash?: string,
     createda_at: Date
+};
+
+export interface role {
+    roles: string
+};
+
+export interface address_id {
+    address_id: number,
 };
 
 export interface Userinfos {
@@ -21,11 +29,21 @@ export interface Userinfos {
     phone?: string,
     street?: string,
     city?: string,
-    state?: string,
+    // state?: string,
     postal_code?: string,
     country?: string,
     // is_default?: boolean
 }
+
+// export interface UserAdrress {
+//     full_name: string,
+//     phone: string,
+//     street: string,
+//     city: string,
+//     state: string,
+//     postal_code: string,
+//     country: string
+// }
 
 export interface UserUpdate {
     email?: string,
@@ -42,7 +60,8 @@ export interface signin {
 
 export interface RegisterResponse {
     msg: string,
-    status: boolean
+    status: boolean,
+
 };
 
 export interface Bagination {

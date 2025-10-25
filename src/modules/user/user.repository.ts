@@ -1,7 +1,7 @@
 import { QueryResult } from "pg";
 import pool from "../../db/config";
 import { UserQueries } from "./user.queries";
-import {User, UserUpdate } from "./user.type";
+import {address_id, role, User, UserUpdate } from "./user.type";
 import { UUID } from "crypto";
 import { hashPassword } from "../../utils/passwords";
 
@@ -42,25 +42,34 @@ export class UserRepository {
         return user.rows[0] || null;
     }
 
-    static async create (user_data: any): Promise<User | null> {
+    static async create (user_data: any): Promise<any | null> {
         user_data.password = await hashPassword(user_data.password);
-        
-        const userquery = UserQueries.createUser(user_data);
+        // console.log("password hashed : ", user_data.password);
+        const userquery = UserQueries.createUser(user_data.email, user_data.username, user_data.password);
         const user : QueryResult<User> = await pool.query(userquery);
-        const user_id = user.rows[0].id;
+        const user_id = user.rows[0].user_id;
+        // console.log("user.rows[0]: ", user.rows[0])
+        // console.log("user_id : ", user_id)
         if (!user_id)
             return null;
+        // console.log("user_data: ", user_data)
 
-        const rolequery = UserQueries.createUserRole(user_data, user_id);
-        const role : QueryResult<String> = await pool.query(rolequery);
+        const rolequery = UserQueries.createUserRole(user_data.role, user_id);
+        const role : QueryResult<role> = await pool.query(rolequery);
+        
+        console.log("role : ", role.rows[0].roles)
 
-        const addressquery = UserQueries.createUserAddress(user_data, user_id);
-        const address : QueryResult<Number> = await pool.query(addressquery);
+        const addressquery = UserQueries
+        .createUserAddress(user_data.full_name, user_data.phone, user_data.street,
+        user_data.city,user_data.state,user_data.postal_code, user_data.country, user_id);
+        const address : QueryResult<address_id> = await pool.query(addressquery);
+
+        console.log("address : ", address)
 
         if (!role || !address)
             return null;
 
-        return user.rows[0] || null;
+        return {user: user.rows[0], role: role.rows[0].roles, address: address.rows[0].address_id};
     }
     
 

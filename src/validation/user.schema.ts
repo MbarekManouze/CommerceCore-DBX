@@ -9,9 +9,11 @@ export const SingUp = z.object({
     role: z.enum(roles),
     full_name: z.string(),
     phone: z.string(),
+    city: z.string(),
+    // "state": z.string,
     street: z.string(),
     postal_code: z.string(),
-    coutry: z.string()
+    country: z.string()
 });
 
 export const updateUserSchema = z.object({
