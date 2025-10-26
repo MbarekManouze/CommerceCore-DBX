@@ -5,9 +5,9 @@ import { number } from "zod";
 
 export const singUp = async (req: Request, res:Response) => {
     const body : Userinfos = req.body;
-    console.log(body)
+    // console.log(body)
     const result = await userService.register(body);
-    res.json(result).status(200);
+    res.json(result).status(result.stat_code);
     // res.json(body);
 }
 

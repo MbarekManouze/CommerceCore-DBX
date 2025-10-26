@@ -9,7 +9,7 @@ export interface User {
     email: string,
     username: string,
     password_hash?: string,
-    createda_at: Date
+    created_at: Date
 };
 
 export interface role {
@@ -29,7 +29,7 @@ export interface Userinfos {
     phone?: string,
     street?: string,
     city?: string,
-    // state?: string,
+    state?: string,
     postal_code?: string,
     country?: string,
     // is_default?: boolean

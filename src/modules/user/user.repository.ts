@@ -43,33 +43,52 @@ export class UserRepository {
     }
 
     static async create (user_data: any): Promise<any | null> {
-        user_data.password = await hashPassword(user_data.password);
-        // console.log("password hashed : ", user_data.password);
-        const userquery = UserQueries.createUser(user_data.email, user_data.username, user_data.password);
-        const user : QueryResult<User> = await pool.query(userquery);
-        const user_id = user.rows[0].user_id;
-        // console.log("user.rows[0]: ", user.rows[0])
-        // console.log("user_id : ", user_id)
-        if (!user_id)
-            return null;
-        // console.log("user_data: ", user_data)
+        const hashed_password = await hashPassword(user_data.password);
+        console.log(user_data)
+        const result = await pool.query(`
+            SELECT * FROM create_user_with_details(
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+            )`,
+            [
+                user_data.email,
+                user_data.username,
+                hashed_password,
+                user_data.role,
+                user_data.full_name,
+                user_data.phone,
+                user_data.street,
+                user_data.city,
+                user_data.state,
+                user_data.postal_code,
+                user_data.country
+            ]
+        );
+        console.log(result);
+        return result.rows[0];
 
-        const rolequery = UserQueries.createUserRole(user_data.role, user_id);
-        const role : QueryResult<role> = await pool.query(rolequery);
-        
-        console.log("role : ", role.rows[0].roles)
+            //  Logic without create_users_with_details
 
-        const addressquery = UserQueries
-        .createUserAddress(user_data.full_name, user_data.phone, user_data.street,
-        user_data.city,user_data.state,user_data.postal_code, user_data.country, user_id);
-        const address : QueryResult<address_id> = await pool.query(addressquery);
+        //      ||           ||         ||          ||
+        //      \/           \/         \/          \/
 
-        console.log("address : ", address)
+        // const userquery = UserQueries.createUser(user_data.email, user_data.username, user_data.password);
+        // const user : QueryResult<User> = await pool.query(userquery);
+        // const user_id = user.rows[0].user_id;
+        // if (!user_id)
+        //     return null;
 
-        if (!role || !address)
-            return null;
+        // const rolequery = UserQueries.createUserRole(user_data.role, user_id);
+        // const role : QueryResult<role> = await pool.query(rolequery);
 
-        return {user: user.rows[0], role: role.rows[0].roles, address: address.rows[0].address_id};
+        // const addressquery = UserQueries
+        // .createUserAddress(user_data.full_name, user_data.phone, user_data.street,
+        // user_data.city,user_data.state,user_data.postal_code, user_data.country, user_id);
+        // const address : QueryResult<address_id> = await pool.query(addressquery);
+
+        // if (!role || !address)
+        //     return null;
+
+        // return {user: user.rows[0], role: role.rows[0].roles, address: address.rows[0].address_id};
     }
     
 

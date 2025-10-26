@@ -21,11 +21,13 @@ export class userService {
             const data = await UserRepository.create(user_data);
             // console.log("user : ", data);
 
-            if (data.user.user_id)
-                return {msg: "Client created succesfully", status: true, user_data: data};
+            if (data?.user_id)
+                return {msg: "Client created succesfully", status: true, user_data: data, stat_code: 200};
+            else
+                return {msg: data.err_msg, status: false, stat_code: 422}
         }
 
-        return {msg: "Some Thing went wrong", status: false};
+        return {msg: "Some Thing went wrong", status: false, stat_code: 401};
     }
 
     static async checkIfUserExists(user_data: signin): Promise<User | null> {
@@ -34,8 +36,10 @@ export class userService {
         if (user?.password_hash){
             const verify = await verifyPassword(user_data.password, user?.password_hash);
             // console.log("does passoword matvh : ", verify);
-            if (user?.password_hash && verify)
+            if (user?.password_hash && verify){
+                // return {user_id:user.user_id, username:user.username, email:user.email, created_at:user.created_at};
                 return user;
+            }
         }
         return null;
     }

@@ -10,10 +10,15 @@ export const SingUp = z.object({
     full_name: z.string(),
     phone: z.string(),
     city: z.string(),
-    // "state": z.string,
+    state: z.string(),
     street: z.string(),
     postal_code: z.string(),
     country: z.string()
+});
+
+export const singIn = z.object({
+    email: z.email(),
+    password: z.string().min(6)
 });
 
 export const updateUserSchema = z.object({
