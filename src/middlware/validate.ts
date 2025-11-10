@@ -1,7 +1,8 @@
 import { ZodObject } from "zod";
 import { Request, Response, NextFunction } from "express";
+import isUUID from "uuid-validate";
 
-export const validate = (schema: ZodObject) => (req: Request, res: Response, next: NextFunction) => {
+export const validateCredentials = (schema: ZodObject) => (req: Request, res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body);
 
     if (!result.success) {
@@ -10,3 +11,15 @@ export const validate = (schema: ZodObject) => (req: Request, res: Response, nex
     req.body = result.data;
     next();
 }
+
+export const validateUUID = (req: Request, res: Response, next: NextFunction) => {
+    const { id } = req.params;
+  
+    if (!isUUID(id)) {
+      return res.status(400).json({ error: "Invalid UUID format" });
+    }
+  
+    next();
+  };
+  
+  

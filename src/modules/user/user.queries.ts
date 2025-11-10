@@ -46,13 +46,20 @@ export const UserQueries = {
         RETURNING address_id;
     `,
 
+    // updateUser: (id: string, data: UserUpdate) => SQL`
+    //     UPDATE users SET
+    // `
+
     updateUser: (id: string, data: UserUpdate) => {
         const query = SQL`UPDATE users SET `;
         const fields: SQLStatement[] = [];
     
-        if (data.email) fields.push(SQL`email = ${data.email}`);
-        if (data.email_verified !== undefined) fields.push(SQL`email_verified = ${data.email_verified}`);
-        if (data.password) fields.push(SQL`password = ${data.password}`);
+        if (data.email) {
+            fields.push(SQL`email = ${data.email}`);
+            fields.push(SQL`email_verified = FALSE`);
+        }
+        if (data.password) fields.push(SQL`password_hash = ${data.password}`);
+        if (data.username) fields.push(SQL`username = ${data.username}`)
         if (fields.length > 0) fields.push(SQL`updated_at = NOW()`);
 
         // query.append(fields.join(", "));

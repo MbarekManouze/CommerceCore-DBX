@@ -47,11 +47,20 @@ export interface Userinfos {
 
 export interface UserUpdate {
     email?: string,
-    email_verified?: boolean,
     username?: string,
     password?: string,
-    updated_at?: Date
 };
+
+
+export interface UserAdrress {
+    full_name?: string,
+    phone?: string,
+    street?: string,
+    city?: string,
+    state?: string,
+    postal_code?: string,
+    country?: string,
+}
 
 export interface signin {
     email: string,

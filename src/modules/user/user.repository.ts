@@ -16,10 +16,9 @@ export class UserRepository {
     }
 
     static async findall (limit: number, offset: number): Promise<User[] | null> {
-        const query = UserQueries.findAll(limit, offset);
-        const user : QueryResult<User> = await pool.query(query);
-
-        return user.rows || null;
+        const query = UserQueries.findAll(offset, limit);
+        const users : QueryResult<User> = await pool.query(query);
+        return users.rows || null;
     }
     
     static async findOne_email (email : string): Promise<User | null> {
@@ -93,6 +92,8 @@ export class UserRepository {
     
 
     static async update (id: string, data: UserUpdate): Promise<User | null> {
+        if (data.password)
+            data.password = await hashPassword(data.password);
         const query = UserQueries.updateUser(id, data);
         const resposne : QueryResult<User> = await pool.query(query);
         return resposne.rows[0] || null;

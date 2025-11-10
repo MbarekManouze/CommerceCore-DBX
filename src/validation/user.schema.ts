@@ -22,7 +22,14 @@ export const singIn = z.object({
 });
 
 export const updateUserSchema = z.object({
-    email: z.string().optional(),
+    email: z.email(),
     username: z.string().min(3).max(12).optional(),
-    password: z.string().min(6).optional()
+    password: z.string().min(6)
+    // full_name: z.string(),
+    // phone: z.string(),
+    // city: z.string(),
+    // state: z.string(),
+    // street: z.string(),
+    // postal_code: z.string(),
+    // country: z.string()
 });

@@ -1,7 +1,7 @@
 import { UUID } from "crypto";
 import { verifyPassword } from "../../utils/passwords";
 import { UserRepository } from "./user.repository";
-import { RegisterResponse, signin, User, UserUpdate } from "./user.type";
+import { RegisterResponse, signin, User, UserAdrress, UserUpdate } from "./user.type";
 
 export class userService {
 
@@ -56,9 +56,13 @@ export class userService {
         return  { users, total: total ?? 0 };
     }
 
-    static async updateUser(id: string, updates: UserUpdate) : Promise<User | null>{
+    static async updateUser(id: string, updates: UserUpdate) : Promise<User | null>{            
         const data = await UserRepository.update(id, updates);
         return data || null;
+    }
+
+    static async updateUserAddresses(id: string, updates: UserAdrress) : Promise<any>{
+        
     }
 
     static async getUser(id: string): Promise<User | null> {

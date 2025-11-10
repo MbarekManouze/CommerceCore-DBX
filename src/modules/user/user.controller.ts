@@ -1,7 +1,6 @@
 import { Request, RequestParamHandler, Response } from "express";
 import { userService } from "./user.service";
 import { signin, Userinfos, UserUpdate } from "./user.type";
-import { number } from "zod";
 
 export const singUp = async (req: Request, res:Response) => {
     const body : Userinfos = req.body;
@@ -15,6 +14,8 @@ export const singIn = async (req: Request, res:Response) => {
     const body : signin = req.body;
     if (body.email && body.password) {
         const data = await userService.checkIfUserExists(body);
+        if (data == null)
+            res.json("user with such credentials is not found").status(400);
         res.json(data).status(200);
     }
     else
@@ -40,11 +41,11 @@ export const getUser = async (req: Request, res: Response) => {
     const id = req.params.id;
     if (id) {
         const user = await userService.getUser(id);
-        res.json(user);
+        res.status(200).json(user);
     }
-    res.json("id not found in url").status(400);
+    else
+       res.status(400).json("id not found in url");
 }
-
 
 export const updateUser = async (req: Request, res: Response) => {
     const id = req.params.id;
@@ -54,7 +55,18 @@ export const updateUser = async (req: Request, res: Response) => {
     
         res.json(data).status(202);
     }
-    res.json("id not found in url").status(400);
+    else
+        res.json("id not found in url").status(400);
+}
+
+export const updateUserAddressesInfos = async (req: Request, res: Response) => {
+    const id = req.params.id;
+    if (id) {
+        const body = req.body;
+        const data = await userService.updateUserAddresses(id, body);
+
+        res.status(200).json(data);
+    }
 }
 
 export const verify_email = async (req: Request, res: Response) => {
