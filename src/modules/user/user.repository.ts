@@ -1,7 +1,7 @@
 import { QueryResult } from "pg";
 import pool from "../../db/config";
 import { UserQueries } from "./user.queries";
-import {address_id, role, User, UserUpdate } from "./user.type";
+import {address_id, role, User, UserAdrress, UserUpdate } from "./user.type";
 import { UUID } from "crypto";
 import { hashPassword } from "../../utils/passwords";
 
@@ -39,6 +39,13 @@ export class UserRepository {
         const query = UserQueries.findByUsername(username);
         const user : QueryResult<User> = await pool.query(query);
         return user.rows[0] || null;
+    }
+
+    static async user_details (id: string) : Promise<any> {
+        const query = UserQueries.userDetails(id);
+        const user_details : QueryResult<any> = await pool.query(query);
+        console.log(user_details.rows);
+        return user_details.rows[0] || null;
     }
 
     static async create (user_data: any): Promise<any | null> {
@@ -90,8 +97,13 @@ export class UserRepository {
         // return {user: user.rows[0], role: role.rows[0].roles, address: address.rows[0].address_id};
     }
     
+    static async updateAddress (id: string, data: UserAdrress) : Promise<any> {
+        const query = UserQueries.updateUserAddress(id, data);
+        const response : QueryResult<any> = await pool.query(query);
+        return response.rows[0] || null;
+    }
 
-    static async update (id: string, data: UserUpdate): Promise<User | null> {
+    static async updateCredentials (id: string, data: UserUpdate): Promise<User | null> {
         if (data.password)
             data.password = await hashPassword(data.password);
         const query = UserQueries.updateUser(id, data);

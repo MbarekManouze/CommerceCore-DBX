@@ -1,5 +1,5 @@
 import SQL, { SQLStatement } from "sql-template-strings";
-import { Userinfos, UserUpdate } from "./user.type";
+import { UserAdrress, Userinfos, UserUpdate } from "./user.type";
 import { UUID } from "crypto";
 import { userInfo } from "os";
 
@@ -14,6 +14,35 @@ export const UserQueries = {
     findByUsername: (username: string) => SQL`SELECT * FROM users WHERE username = ${username};`,
 
     findAll: (offset: number, limit: number) => SQL`SELECT * FROM users ORDER BY created_at LIMIT ${limit} OFFSET ${offset};`,
+
+    userDetails: (id: string) => SQL`
+        SELECT
+            u.user_id,
+            u.username,
+            u.email,
+            u.email_verified,
+            u.created_at as Join_Date,
+            json_build_object(
+                'roles', r.roles
+            ) AS role,
+            json_build_object(
+                'address_id', a.address_id,
+                'full_name', a.full_name,
+                'phone', a.phone,
+                'street', a.street,
+                'city', a.city,
+                'state', a.state,
+                'postal_code', a.postal_code,
+                'country', a.country,
+                'created_at', a.created_at
+            ) AS address
+        FROM
+            users u
+        JOIN user_role r ON u.user_id = r.user_id
+        JOIN addresses a ON u.user_id = r.user_id
+        WHERE
+            u.user_id = ${id};
+    `,
 
     createUser: (email: string, username: string, password: string) => SQL`
         INSERT INTO users (email, username, password_hash) 
@@ -46,9 +75,27 @@ export const UserQueries = {
         RETURNING address_id;
     `,
 
-    // updateUser: (id: string, data: UserUpdate) => SQL`
-    //     UPDATE users SET
-    // `
+    updateUserAddress: (id: string, data: UserAdrress) => {
+        const query = SQL`UPDATE addresses SET `;
+        const fields: SQLStatement[] = [];
+
+        if (data.full_name) fields.push(SQL`full_name = ${data.full_name}`);
+        if (data.city) fields.push(SQL`city = ${data.city}`);
+        if (data.country) fields.push(SQL`country = ${data.country}`);
+        if (data.phone) fields.push(SQL`phone = ${data.phone}`);
+        if (data.postal_code) fields.push(SQL`postal_code = ${data.postal_code}`);
+        if (data.state) fields.push(SQL`state = ${data.state}`);
+        if (data.street) fields.push(SQL`street = ${data.street}`);
+        if (fields.length > 0) fields.push(SQL`updated_at = NOW()`);
+
+        fields.forEach((field, i) => {
+            if (i > 0) query.append(SQL`, `);
+            query.append(field);
+        });
+        query.append(SQL` WHERE address_id = ${id} RETURNING *;`);
+
+        return query;
+    },
 
     updateUser: (id: string, data: UserUpdate) => {
         const query = SQL`UPDATE users SET `;

@@ -21,15 +21,18 @@ export const singIn = z.object({
     password: z.string().min(6)
 });
 
-export const updateUserSchema = z.object({
+export const updateUserCredentials = z.object({
     email: z.email(),
     username: z.string().min(3).max(12).optional(),
     password: z.string().min(6)
-    // full_name: z.string(),
-    // phone: z.string(),
-    // city: z.string(),
-    // state: z.string(),
-    // street: z.string(),
-    // postal_code: z.string(),
-    // country: z.string()
 });
+
+export const updateUserAddress = z.object({
+    full_name: z.string(),
+    phone: z.string(),
+    city: z.string(),
+    state: z.string(),
+    street: z.string(),
+    postal_code: z.string(),
+    country: z.string()
+})

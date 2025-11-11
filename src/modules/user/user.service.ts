@@ -57,12 +57,18 @@ export class userService {
     }
 
     static async updateUser(id: string, updates: UserUpdate) : Promise<User | null>{            
-        const data = await UserRepository.update(id, updates);
+        const data = await UserRepository.updateCredentials(id, updates);
         return data || null;
     }
 
     static async updateUserAddresses(id: string, updates: UserAdrress) : Promise<any>{
-        
+        const data = await UserRepository.updateAddress(id, updates);
+        return data || null;
+    }
+
+    static async getUserDetails(id: string): Promise<User | null> {
+        const data = await UserRepository.user_details(id);
+        return data || null;
     }
 
     static async getUser(id: string): Promise<User | null> {

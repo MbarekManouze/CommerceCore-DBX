@@ -37,6 +37,16 @@ export const getUsers = async (req:Request, res:Response) => {
     // res.json("khdaam");
 }
 
+export const getUsersDetails = async(req: Request, res: Response) => {
+    const id = req.params.id;
+    if (id) {
+        const user = await userService.getUserDetails(id);
+        res.status(200).json(user);
+    }
+    else
+       res.status(400).json("id not found in url");
+}
+
 export const getUser = async (req: Request, res: Response) => {
     const id = req.params.id;
     if (id) {
