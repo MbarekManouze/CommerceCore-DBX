@@ -61,7 +61,7 @@ export class userService {
         return data || null;
     }
 
-    static async updateUserAddresses(id: string, updates: UserAdrress) : Promise<any>{
+    static async updateUserAddresses(id: number, updates: UserAdrress) : Promise<any>{
         const data = await UserRepository.updateAddress(id, updates);
         return data || null;
     }

@@ -97,7 +97,7 @@ export class UserRepository {
         // return {user: user.rows[0], role: role.rows[0].roles, address: address.rows[0].address_id};
     }
     
-    static async updateAddress (id: string, data: UserAdrress) : Promise<any> {
+    static async updateAddress (id: number, data: UserAdrress) : Promise<any> {
         const query = UserQueries.updateUserAddress(id, data);
         const response : QueryResult<any> = await pool.query(query);
         return response.rows[0] || null;

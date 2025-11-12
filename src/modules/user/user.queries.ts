@@ -75,7 +75,7 @@ export const UserQueries = {
         RETURNING address_id;
     `,
 
-    updateUserAddress: (id: string, data: UserAdrress) => {
+    updateUserAddress: (id: number, data: UserAdrress) => {
         const query = SQL`UPDATE addresses SET `;
         const fields: SQLStatement[] = [];
 
@@ -93,7 +93,6 @@ export const UserQueries = {
             query.append(field);
         });
         query.append(SQL` WHERE address_id = ${id} RETURNING *;`);
-
         return query;
     },
 

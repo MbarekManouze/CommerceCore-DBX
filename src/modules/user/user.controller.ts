@@ -70,7 +70,7 @@ export const updateUser = async (req: Request, res: Response) => {
 }
 
 export const updateUserAddressesInfos = async (req: Request, res: Response) => {
-    const id = req.params.id;
+    const id = Number(req.params.id);
     if (id) {
         const body = req.body;
         const data = await userService.updateUserAddresses(id, body);
