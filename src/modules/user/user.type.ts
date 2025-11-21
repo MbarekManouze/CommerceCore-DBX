@@ -9,6 +9,7 @@ export interface User {
     email: string,
     username: string,
     password_hash?: string,
+    role?: string, 
     created_at: Date
 };
 

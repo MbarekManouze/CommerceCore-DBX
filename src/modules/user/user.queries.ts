@@ -9,7 +9,7 @@ export const UserQueries = {
 
     findById: (id: string) => SQL`SELECT * FROM users WHERE user_id = ${id};`,
 
-    findByEmail: (email: string) => SQL`SELECT * FROM users WHERE email = ${email};`,
+    findByEmail: (email: string) => SQL`SELECT *, ur.roles as role FROM users u JOIN user_role ur on u.user_id=ur.user_id WHERE u.email = ${email};`,
 
     findByUsername: (username: string) => SQL`SELECT * FROM users WHERE username = ${username};`,
 
