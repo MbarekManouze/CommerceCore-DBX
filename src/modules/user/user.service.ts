@@ -1,7 +1,7 @@
 import { UUID } from "crypto";
 import { verifyPassword } from "../../utils/passwords";
 import { UserRepository } from "./user.repository";
-import { RegisterResponse, signin, User, UserAdrress, UserUpdate } from "./user.type";
+import { signin, User, UserAdrress, UserUpdate } from "./user.type";
 
 export class userService {
 

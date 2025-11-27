@@ -61,7 +61,7 @@ export const getUsers = async (req: AuthRequest, res:Response) => {
 }
 
 export const getUsersDetails = async(req: AuthRequest, res: Response) => {
-    const id = req.params.id;
+    const id = req.user?.user_id;
     if (id) {
         const user = await userService.getUserDetails(id);
         res.status(200).json(user);
@@ -71,7 +71,7 @@ export const getUsersDetails = async(req: AuthRequest, res: Response) => {
 }
 
 export const getUser = async (req: AuthRequest, res: Response) => {
-    const id = req.params.id;
+    const id = req.user?.user_id;
     if (id) {
         const user = await userService.getUser(id);
         res.status(200).json(user);
@@ -81,7 +81,7 @@ export const getUser = async (req: AuthRequest, res: Response) => {
 }
 
 export const updateUser = async (req: AuthRequest, res: Response) => {
-    const id = req.params.id;
+    const id = req.user?.user_id;
     if (id) {
         const body = req.body;
         const data = await userService.updateUser(id, body);
@@ -93,7 +93,7 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
 }
 
 export const updateUserAddressesInfos = async (req: AuthRequest, res: Response) => {
-    const id = Number(req.params.id);
+    const id = Number(req.user?.user_id);
     if (id) {
         const body = req.body;
         const data = await userService.updateUserAddresses(id, body);

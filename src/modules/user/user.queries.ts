@@ -1,7 +1,5 @@
 import SQL, { SQLStatement } from "sql-template-strings";
 import { UserAdrress, Userinfos, UserUpdate } from "./user.type";
-import { UUID } from "crypto";
-import { userInfo } from "os";
 
 export const UserQueries = {
 
