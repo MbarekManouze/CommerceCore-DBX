@@ -36,6 +36,34 @@ export const ProductQueries = {
         });
 
         return query;
-    }
+    },
+
+    updateProduct: (product_id: string, product_date: any) => {
+
+        const query = SQL`UPDATE products SET `;
+        const fields: SQLStatement[] = [];
+    
+        if (product_date.category_id) fields.push(SQL`category_id = ${product_date.category_id}`);
+        if (product_date.name) fields.push(SQL`name = ${product_date.name}`);
+        if (product_date.description) fields.push(SQL`description = ${product_date.description}`);
+        if (product_date.price) fields.push(SQL`price = ${product_date.price}`);
+        if (product_date.attributes) fields.push(SQL`attributes = ${product_date.attributes}`);
+        if (fields.length > 0) fields.push(SQL`updated_at = NOW()`);
+
+        // query.append(fields.join(", "));
+        fields.forEach((field, i) => {
+            if (i > 0) query.append(SQL`, `);
+            query.append(field);
+        });
+        query.append(SQL` WHERE product_id = ${product_id} RETURNING *;`)
+
+        return query;
+    },
+
+    delete: (product_id: string) => SQL`
+        DELETE FROM products
+        WHERE product_id = ${product_id};
+    `,
+
 
 }
