@@ -2,43 +2,40 @@ import SQL, { SQLStatement } from "sql-template-strings";
 
 export const ProductQueries = {
 
-
+    // JOIN user's data with product
     // filtering logic still nedded (price, stock, name, ...) DYNAMIC
-    all: (limit: number, offset: number, user_id: string) => {
+    all: (limit: number, offset: number, user_id?: string) => {
         const query = SQL`
-            SELECT 
-                p.product_id,
-                p.name,
-                p.description,
-                p.price,
-                p.attributes,
-                p.created_at AS "product_date",
-                json_build_object(
-                    'category', c.name
-                ) AS category,
-                json_build_object(
-                    'stock', pi.stock
-                ) AS stock
-            FROM
-                products
-            JOIN categories c ON c.category_id=p.category_id
-            JOIN product_inventory pi ON pi.product_id=p.product_id
+          SELECT 
+            p.product_id,
+            p.name,
+            p.price,
+            p.description,
+            p.created_at AS "product_date",
+            p.attributes,
+            json_build_object(
+              'category', c.name
+            ) AS category,
+            json_build_object(
+              'stock', pi.stock
+            ) AS stock
+          FROM
+            products p
+          JOIN categories c ON c.category_id = p.category_id
+          JOIN product_inventory pi ON pi.product_id = p.product_id
         `;
-        const fields: SQLStatement[] = [];
-        if (user_id.length > 0) fields.push(SQL`WHERE user_id=${user_id}`);
-
-        fields.push(SQL`LIMIT ${limit}`);
-        fields.push(SQL`OFFSET ${offset}`);
-
-        fields.forEach((field, i) => {
-            if (i > 0) query.append(SQL`, `);
-            query.append(field);
-        });
-
+    
+        if (user_id && user_id.length > 0) {
+          query.append(SQL` WHERE p.user_id = ${user_id}`);
+        }
+    
+        query.append(SQL` LIMIT ${limit} OFFSET ${offset}`);
+    
         return query;
     },
+    
 
-    updateProduct: (product_id: string, product_date: any) => {
+    update: (product_id: string, product_date: any) => {
 
         const query = SQL`UPDATE products SET `;
         const fields: SQLStatement[] = [];
@@ -56,9 +53,17 @@ export const ProductQueries = {
             query.append(field);
         });
         query.append(SQL` WHERE product_id = ${product_id} RETURNING *;`)
+        // console.log(query);
 
         return query;
     },
+
+    updateStock: (product_id: string, stock: number) => SQL`
+        UPDATE product_inventory SET
+        stock = ${stock},
+        last_updated = NOW()
+        WHERE product_id = ${product_id}
+    `,
 
     delete: (product_id: string) => SQL`
         DELETE FROM products
