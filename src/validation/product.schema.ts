@@ -15,5 +15,5 @@ export const updateProduct = z.object({
     description: z.string().min(20).max(500).optional(),
     price: z.number().positive().optional(),
     attributes: z.json().optional(),
-    stock: z.number().optional()
+    stock: z.number().nonnegative().optional()
 })

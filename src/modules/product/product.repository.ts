@@ -40,22 +40,19 @@ export class ProductRepository {
     }
 
     static async update(product_id: string, product_data: products): Promise<any | null> {
-        if (product_data.attributes 
-            || product_data.category_id
-            || product_data.description
-            || product_data.name
-            || product_data.price) {
-                const product_query = ProductQueries.update(product_id, product_data);
-                await pool.query(product_query);
+        const productQuery = ProductQueries.update(product_id, product_data);      // dynamic SET ...
+        const stockQuery =
+          product_data.stock !== undefined ? ProductQueries.updateStock(product_id, product_data.stock) : null;
+      
+        await pool.query("BEGIN");
+        try {
+          if (productQuery) await pool.query(productQuery);
+          if (stockQuery) await pool.query(stockQuery);
+          await pool.query("COMMIT");
+        } catch (e) {
+          await pool.query("ROLLBACK");
+          throw e;
         }
-        if (product_data.stock) {
-            console.log(product_data)
-            const stock_query = ProductQueries.updateStock(product_id, product_data.stock);
-            await pool.query(stock_query);
-        }
-
-        // console.log(result.rows[0]);
-        return 1;
     }
 
     static async delete(product_id: string) : Promise<any | null> {

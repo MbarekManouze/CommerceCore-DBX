@@ -45,17 +45,20 @@ export const ProductQueries = {
         if (product_date.description) fields.push(SQL`description = ${product_date.description}`);
         if (product_date.price) fields.push(SQL`price = ${product_date.price}`);
         if (product_date.attributes) fields.push(SQL`attributes = ${product_date.attributes}`);
-        if (fields.length > 0) fields.push(SQL`updated_at = NOW()`);
+        if (fields.length > 0) {
+            fields.push(SQL`updated_at = NOW()`);
+            // query.append(fields.join(", "));
+            fields.forEach((field, i) => {
+                if (i > 0) query.append(SQL`, `);
+                query.append(field);
+            });
+            query.append(SQL` WHERE product_id = ${product_id} RETURNING *;`)
+            // console.log(query);
+    
+            return query;
+        }
+        else return null;
 
-        // query.append(fields.join(", "));
-        fields.forEach((field, i) => {
-            if (i > 0) query.append(SQL`, `);
-            query.append(field);
-        });
-        query.append(SQL` WHERE product_id = ${product_id} RETURNING *;`)
-        // console.log(query);
-
-        return query;
     },
 
     updateStock: (product_id: string, stock: number) => SQL`

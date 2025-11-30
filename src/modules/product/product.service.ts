@@ -21,8 +21,12 @@ export class productService {
     }
     
     static async updateProduct(product_id: string, product_data: products): Promise<any | null> {
-        const response = await ProductRepository.update(product_id, product_data);
-        return response;
+        try {
+            const response = await ProductRepository.update(product_id, product_data);
+            return response;
+        } catch (error) {
+            return {msg: error, status: 500};
+        }
     }
     
     static async deleteProduct(product_id: string): Promise<any | null> {
