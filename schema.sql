@@ -76,7 +76,7 @@ CREATE TABLE sales.orders (
 );
 
 CREATE TABLE sales.order_items (
-    order_id UUID REFERENCES sales.orders(order_id),
+    order_id UUID REFERENCES sales.orders(order_id) ON ,
     product_id UUID REFERENCES register.products(product_id),
     quantity INT check (quantity > 0),
     price NUMERIC(10, 2),

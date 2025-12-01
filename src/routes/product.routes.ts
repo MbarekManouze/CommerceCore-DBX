@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", auth, productController.products);
 router.get("/my", productController.userProducts);
 router.get("/:id", productController.othersProducts);
-router.post("/new", auth, validateCredentials(product) ,productController.newProducts);
+router.post("/create", auth, validateCredentials(product) ,productController.newProducts);
 router.put("/modify/:id", auth , validateUUID, validateCredentials(updateProduct), productController.modifyProduct);
 router.delete("/delete/:id", auth , validateUUID, productController.deleteProduct);
 
