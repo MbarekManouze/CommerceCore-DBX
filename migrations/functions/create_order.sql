@@ -45,4 +45,5 @@ BEGIN
 
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
+
         
