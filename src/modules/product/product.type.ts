@@ -7,3 +7,6 @@ export interface products {
     stock?: number
 };
 
+export interface product_id {
+    product_id: string
+};

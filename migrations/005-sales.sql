@@ -11,7 +11,7 @@ CREATE TABLE orders (
 
 CREATE TABLE order_items (
     order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
-    product_id UUID REFERENCES register.products(product_id),
+    product_id UUID REFERENCES products(product_id),
     quantity INT check (quantity > 0),
     price NUMERIC(10, 2),
     total NUMERIC(10, 2) generated always as (quantity * price) stored,
