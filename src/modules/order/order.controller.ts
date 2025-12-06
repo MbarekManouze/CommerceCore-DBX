@@ -23,7 +23,8 @@ export class ordreController {
     }
 
     static async modifyOrder_address(req: AuthRequest, res: Response) {
-        const address_id: shipping_address_id = req.body;
+        const address_id: number = req.body.shipping_address_id;
+        console.log(address_id)
         const order_id: string = String(req.params.id);
         
         const response = await orderService.modifyAddress(Number(address_id), order_id);
@@ -31,7 +32,7 @@ export class ordreController {
     }
 
     static async deleteProduct(req: AuthRequest, res: Response) {
-        const product_id: product_id = req.body;
+        const product_id: string = req.body.product_id;
         const order_id: string = String(req.params.id);
 
         const response = await orderService.deleteProduct(order_id, String(product_id));

@@ -32,8 +32,12 @@ export class orderRepository {
 
     static async modifyAddress(address_id: number, order_id: string) : Promise<any>{
         const query = orderQueries.modifyAddress(order_id, address_id);
-        const result = await pool.query(query);
-        return result.rows[0];
+        try {
+            const result = await pool.query(query);
+            return result.rows[0];
+        } catch (error) {
+            return error;
+        }
     }
 
     static async deleteProduct(order_id: string, product_id: string) : Promise<any>{

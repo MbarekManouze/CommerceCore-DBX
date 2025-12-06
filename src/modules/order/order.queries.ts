@@ -13,5 +13,4 @@ export const orderQueries = {
         SET shipping_address_id = ${address_id}
         WHERE order_id = ${order_id};
     `,
-
 };
