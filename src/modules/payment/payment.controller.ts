@@ -1,88 +1,114 @@
 // src/modules/payment/payment.controller.ts
-import { Request, Response } from "express";
+import { Response } from "express";
 import { AuthRequest } from "../../middlware/auth";
 import Stripe from "stripe";
 import { paymentService } from "./payment.service";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+
 
 export class paymentController {
-    
-    /**
-     * Create a PaymentIntent for an order
-     */
-    static async createCheckout(req: AuthRequest, res: Response) {
-        try {
-            const { order_id, method_id } = req.body;
-            const user_id = req.user!.user_id;
+  /**
+   * Create Stripe Checkout Session for an order
+   * Body: { order_id: string, method_id: number }
+   */
+  static async createCheckoutSession(req: AuthRequest, res: Response) {
+    try {
+      const { order_id, method_id } = req.body;
+      const user_id = req.user!.user_id;
 
-            if (!order_id || !method_id) {
-                return res.status(400).json({ msg: "Missing required fields" });
-            }
+      if (!order_id || !method_id) {
+        return res.status(400).json({ msg: "order_id and method_id are required" });
+      }
 
-            // 1. Validate and retrieve order
-            const order = await paymentService.getOrder(order_id, user_id);
+      // 1. Load and validate order (belongs to user, status pending, etc.)
+      const order = await paymentService.getOrderForPayment(order_id, user_id);
+      if (!order) {
+        return res.status(404).json({ msg: "Order not found or not payable" });
+      }
+      console.log("order : " + order);
+      // 2. Create pending payment record in DB
+      const payment = await paymentService.createPendingPayment({
+        order_id,
+        method_id,
+        amount: Number(order.total), // NUMERIC from DB
+        provider: "stripe_checkout",
+      });
+      console.log("payment : " + payment);
 
-            if (!order) return res.status(404).json({ msg: "Order not found" });
+      // 3. Create Stripe Checkout Session
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
 
-            // 2. Create Stripe PaymentIntent
-            const paymentIntent = await stripe.paymentIntents.create({
-                amount: Math.round(order.total * 100), // cents
-                currency: "usd",
-                metadata: {
-                    order_id: order_id,
-                    user_id: user_id,
-                },
-            });
+        
+        // You can build real line_items based on order_items later.
+        // For now, one line with total amount:
+        line_items: [
+          {
+            price_data: {
+              currency: "usd", // or "mad" if enabled
+              unit_amount: Math.round(Number(order.total) * 100), // cents
+              product_data: {
+                name: `Order ${order_id}`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
 
-            // 3. Store pending payment entry in DB
-            await paymentService.storePendingPayment({
-                order_id,
-                method_id,
-                amount: order.total,
-                stripe_payment_intent: paymentIntent.id,
-            });
+        // These URLs should be your frontend URLs
+        success_url: `${process.env.FRONTEND_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL}/checkout/cancel?order_id=${order_id}`,
 
-            res.json({
-                clientSecret: paymentIntent.client_secret,
-                paymentIntentId: paymentIntent.id,
-            });
+        metadata: {
+          order_id,
+          payment_id: payment.payment_id,
+          user_id,
+        },
+      });
 
-        } catch (e: any) {
-            console.error("Checkout Error:", e);
-            return res.status(500).json({ msg: e.message });
-        }
+      console.log("session : " + session);
+      // 4. Save Stripe session id to payment row
+      await paymentService.attachStripeSession(payment.payment_id, session.id);
+
+      return res.status(200).json({
+        checkout_url: session.url,
+        payment_id: payment.payment_id,
+      });
+    } catch (err: any) {
+      console.error("[createCheckoutSession] error:", err);
+      return res.status(500).json({ msg: "Failed to create checkout session" });
     }
+  }
 
-    /**
-     * Get payment details
-     */
-    static async getPaymentById(req: AuthRequest, res: Response) {
-        try {
-            const payment_id = req.params.id;
-            const result = await paymentService.getPayment(payment_id);
+  static async getPaymentById(req: AuthRequest, res: Response) {
+    try {
+      const payment_id = req.params.id;
+      const user_id = req.user!.user_id;
 
-            if (!result) return res.status(404).json({ msg: "Payment not found" });
+      const payment = await paymentService.getPaymentById(payment_id, user_id);
+      if (!payment) return res.status(404).json({ msg: "Payment not found" });
 
-            res.json(result);
-
-        } catch (e: any) {
-            return res.status(500).json({ msg: e.message });
-        }
+      return res.json(payment);
+    } catch (err: any) {
+      console.error("[getPaymentById] error:", err);
+      return res.status(500).json({ msg: "Failed to get payment" });
     }
+  }
 
-    
-    static async getPaymentByOrderId(req: AuthRequest, res: Response) {
-        try {
-            const order_id = req.params.orderId;
-            const result = await paymentService.getPaymentByOrder(order_id);
+  static async getPaymentByOrderId(req: AuthRequest, res: Response) {
+    try {
+      const order_id = req.params.orderId;
+      const user_id = req.user!.user_id;
 
-            if (!result) return res.status(404).json({ msg: "Payment not found" });
+      const payment = await paymentService.getPaymentByOrderId(order_id, user_id);
+      if (!payment) return res.status(404).json({ msg: "Payment not found" });
 
-            res.json(result);
-
-        } catch (e: any) {
-            return res.status(500).json({ msg: e.message });
-        }
+      return res.json(payment);
+    } catch (err: any) {
+      console.error("[getPaymentByOrderId] error:", err);
+      return res.status(500).json({ msg: "Failed to get payment" });
     }
+  }
 }

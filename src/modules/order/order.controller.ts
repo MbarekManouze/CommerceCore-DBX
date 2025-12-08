@@ -6,6 +6,15 @@ import { product_id } from "../product/product.type";
 
 export class ordreController {
 
+    static async getOrder(req: AuthRequest, res: Response) {
+        const { id } = req.params;
+        const  user_id  = String(req.user?.user_id);
+
+        if (!user_id) res.status(404).json('user_id not found');
+        const order_id = await orderService.getOrder(id, user_id);
+        return order_id;
+    }
+
     static async createOrder(req: AuthRequest, res: Response) {
         const order : createOrder = req.body;
         const user_id : string = String(req.user?.user_id);

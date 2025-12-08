@@ -4,6 +4,10 @@ import { createOrder, modifyOrder } from "./order.type";
 
 export class orderService {
 
+    static async getOrder(order_id: string, user_id: string): Promise<any> {
+        return await orderRepository.getOrder(order_id, user_id);
+    }
+
     static async create(user_id: string, order: createOrder): Promise<any> {
         return await orderRepository.create(user_id, order);
     }

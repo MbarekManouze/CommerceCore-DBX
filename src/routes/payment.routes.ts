@@ -11,7 +11,7 @@ const router = Router();
  * Create Stripe PaymentIntent for an order (checkout start)
  * Body: { order_id: string, method_id: number }
  */
-router.post("/checkout", auth, paymentController.createCheckout);
+router.post("/checkout", auth, paymentController.createCheckoutSession);
 
 /**
  * Get payment details by internal payment_id

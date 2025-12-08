@@ -7,6 +7,7 @@ import { createOrderSchema, modifyOrderSchema } from "../validation/order.schema
 
 const router = Router();
 
+router.get('/:id', auth, validateUUID,ordreController.getOrder)
 router.post("/create",auth, validateCredentials(createOrderSchema) ,ordreController.createOrder);
 router.put("/modify/:id",auth, validateUUID, validateCredentials(modifyOrderSchema),ordreController.modifyOrder);
 router.put("/modify/address/:id",auth, validateUUID, ordreController.modifyOrder_address);

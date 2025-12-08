@@ -5,6 +5,12 @@ import { orderQueries } from "./order.queries";
 
 export class orderRepository {
 
+    static async getOrder(order_id: string ,user_id: string) : Promise<any> {
+        const query = orderQueries.getOrder(order_id, user_id);
+        const result : QueryResult<any> = await pool.query(query);
+        return result.rows[0].order_id;
+    }
+
     static async create(user_id: string, order: createOrder) : Promise<any>{
         const result : QueryResult<any> = await pool.query(`
             SELECT * FROM create_order(

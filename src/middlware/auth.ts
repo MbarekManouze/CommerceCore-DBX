@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
 }
 
 export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
+  // console.log(req);
   const token = req.cookies.token;
 
   if (!token) {
@@ -16,6 +17,7 @@ export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 
   try {
+
     const decoded = verifyToken(token); // { user_id, role }
     req.user = {
       user_id: decoded.user_id,
