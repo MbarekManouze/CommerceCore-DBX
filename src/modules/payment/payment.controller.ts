@@ -99,10 +99,13 @@ export class paymentController {
 
   static async getPaymentByOrderId(req: AuthRequest, res: Response) {
     try {
-      const order_id = req.params.orderId;
+      const order_id = req.params.id;
       const user_id = req.user!.user_id;
+        console.log(user_id)
+        console.log(order_id)
 
       const payment = await paymentService.getPaymentByOrderId(order_id, user_id);
+    
       if (!payment) return res.status(404).json({ msg: "Payment not found" });
 
       return res.json(payment);

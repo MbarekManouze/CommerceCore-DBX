@@ -24,23 +24,11 @@ router.get("/:id", auth, validateUUID, paymentController.getPaymentById);
  * GET /api/payments/order/:orderId
  */
 router.get(
-  "/order/:orderId",
+  "/order/:id",
   auth,
   validateUUID,
   paymentController.getPaymentByOrderId
 );
 
-/**
- * Stripe webhook endpoint
- * NOTE:
- * - No auth middleware here
- * - Must use express.raw() so Stripe signature verification works
- * - Make sure in app.ts this route is mounted BEFORE express.json()
- */
-router.post(
-  "/webhooks/stripe",
-  express.raw({ type: "application/json" }),
-  stripeWebhookController.handleStripeWebhook
-);
 
 export default router;

@@ -7,6 +7,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export class stripeWebhookController {
 static async handleStripeWebhook(req: Request, res: Response) {
+    
+    console.log("🔥 Stripe webhook hit");
+
     const sig = req.headers["stripe-signature"] as string | undefined;
 
     if (!sig) {
@@ -19,7 +22,7 @@ static async handleStripeWebhook(req: Request, res: Response) {
         sig,
         process.env.STRIPE_WEBHOOK_SECRET as string
     );
-
+    console.log("event " + event);
     switch (event.type) {
         case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -33,7 +36,7 @@ static async handleStripeWebhook(req: Request, res: Response) {
 
         if (paymentStatus === "paid") {
             // Mark payment as completed + order as paid
-            await paymentService.markPaymentCompletedBySession(sessionId);
+            await paymentService.markPaymentCompletedBySession('cs_test_a10dt7QcSZsHpVbLbQg2VVwUqawrJuJZD1XTgU0ze5pAxO5CKpmOGiY7fo');
         }
 
         break;

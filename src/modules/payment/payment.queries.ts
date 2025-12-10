@@ -29,9 +29,17 @@ export const PaymentQueries = {
         WHERE payment_id = ${payment_id};
     `,
 
+    // getPaymentById: (payment_id: string, user_id: string) => SQL`
+    //     SELECT p.*
+    //     FROM payments p
+    //     JOIN orders o ON p.order_id = o.order_id
+    //     WHERE p.payment_id = ${payment_id}
+    //         AND o.user_id = ${user_id};
+    // `,
+
     getPaymentById: (payment_id: string, user_id: string) => SQL`
         SELECT p.*
-        FROM payments p
+        FROM v_payments_safe p
         JOIN orders o ON p.order_id = o.order_id
         WHERE p.payment_id = ${payment_id}
             AND o.user_id = ${user_id};
@@ -39,13 +47,23 @@ export const PaymentQueries = {
 
     getLatestPaymentByOrderId: (order_id: string,user_id: string) => SQL`
         SELECT p.*
-        FROM payments p
+        FROM v_payments_safe p
         JOIN orders o ON p.order_id = o.order_id
         WHERE p.order_id = ${order_id}
             AND o.user_id = ${user_id}
         ORDER BY p.created_at DESC
         LIMIT 1;
     `,
+
+    // getLatestPaymentByOrderId: (order_id: string,user_id: string) => SQL`
+    //     SELECT p.*
+    //     FROM payments p
+    //     JOIN orders o ON p.order_id = o.order_id
+    //     WHERE p.order_id = ${order_id}
+    //         AND o.user_id = ${user_id}
+    //     ORDER BY p.created_at DESC
+    //     LIMIT 1;
+    // `,
 
     markPaymentCompletedBySession: (session_id: string) => SQL`
         UPDATE payments

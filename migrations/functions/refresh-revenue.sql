@@ -1,0 +1,8 @@
+CREATE OR REPLACE FUNCTION refresh_mv_daily_revenue()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_revenue;
+END;
+$$;

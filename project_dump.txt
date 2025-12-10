@@ -1,0 +1,3050 @@
+📦 Dumping project structure and contents...
+
+===== PROJECT TREE =====
+.
+├── 04-12-2025-TODOLIST
+├── all.sh
+├── db
+│   ├── backups
+│   ├── config
+│   ├── monitoring
+│   └── scripts
+├── docker
+│   ├── docker-compose.yaml
+│   └── Dockerfile
+├── docs
+├── injectFunctions.sh
+├── injectSQL.sh
+├── migrations
+│   ├── 001-init.sql
+│   ├── 002-user.sql
+│   ├── 003-register.sql
+│   ├── 004-link-register.sql
+│   ├── 005-sales.sql
+│   ├── 006-orders-tracking.sql
+│   ├── 007-trigger-product-orders-status.sql
+│   ├── 008-payments.sql
+│   └── functions
+│       ├── create_order.sql
+│       ├── create_product_with_details.sql
+│       ├── create_user_with_details.sql
+│       ├── delete_product_in_order.sql
+│       ├── mark_payment_completed_by_id.sql
+│       ├── mark_payment_completed_by_session.sql
+│       ├── mark_payment_failed_by_id.sql
+│       ├── mark_payment_failed_by_session.sql
+│       ├── modify_order.sql
+│       └── set_order_items_cancelled.sql
+├── package.json
+├── package-lock.json
+├── project_dump.txt
+├── schema.sql
+├── sql
+├── src
+│   ├── app.ts
+│   ├── cache
+│   ├── db
+│   │   └── config.ts
+│   ├── middlware
+│   │   ├── auth.ts
+│   │   └── validate.ts
+│   ├── modules
+│   │   ├── order
+│   │   │   ├── order.controller.ts
+│   │   │   ├── order.queries.ts
+│   │   │   ├── order.repository.ts
+│   │   │   ├── order.service.ts
+│   │   │   └── order.type.ts
+│   │   ├── payment
+│   │   │   ├── payment.controller.ts
+│   │   │   ├── payment.queries.ts
+│   │   │   ├── payment.repository.ts
+│   │   │   ├── payment.service.ts
+│   │   │   ├── payment.type.ts
+│   │   │   └── stripeWebhook.controller.ts
+│   │   ├── product
+│   │   │   ├── product.controller.ts
+│   │   │   ├── product.queries.ts
+│   │   │   ├── product.repository.ts
+│   │   │   ├── product.service.ts
+│   │   │   └── product.type.ts
+│   │   └── user
+│   │       ├── user.controller.ts
+│   │       ├── user.queries.ts
+│   │       ├── user.repository.ts
+│   │       ├── user.service.ts
+│   │       └── user.type.ts
+│   ├── routes
+│   │   ├── index.ts
+│   │   ├── order.routes.ts
+│   │   ├── payment.routes.ts
+│   │   ├── product.routes.ts
+│   │   └── user.routes.ts
+│   ├── server.ts
+│   ├── utils
+│   │   ├── jwt.ts
+│   │   └── passwords.ts
+│   └── validation
+│       ├── order.schema.ts
+│       ├── product.schema.ts
+│       └── user.schema.ts
+├── stripe
+├── stripe_1.33.0_linux_x86_64.tar.gz
+├── tests
+└── tsconfig.json
+
+24 directories, 67 files
+
+===== FILE CONTENTS =====
+
+---------------------------------------------
+FILE: ./injectSQL.sh
+---------------------------------------------
+
+for f in ./migrations/*.sql; do
+  echo "Running $f ..."
+  docker exec -i app_db psql -U dbuser -d myapp < "$f"
+done
+
+
+---------------------------------------------
+FILE: ./project_dump.txt
+---------------------------------------------
+
+
+
+---------------------------------------------
+FILE: ./.env
+---------------------------------------------
+
+JWT_SECRET = dksoe93nnv82-ncjusyrbc38dkcnkdc7t1c73dsz
+STRIPE_SECRET_KEY=sk_test_51ScCVrRgsURos7Ye0VVUKQkTtHasAVrVeEivvESRSkMvlPn8qx5kCtqod9dIqMPiqzP5mgOh9EywVXSfSPgozpKI00sqD5HpdW
+STRIPE_WEBHOOK_SECRET= whsec_7712ad8551ea0f85eab7b853886ce3a2b1db68bb2704978e54b3eabee6defd5e
+FRONTEND_URL=http://localhost:3001
+
+
+---------------------------------------------
+FILE: ./tsconfig.json
+---------------------------------------------
+
+{
+    "compilerOptions": {
+      "target": "ES2020",
+      "module": "CommonJS",
+      "moduleResolution": "Node",
+      "rootDir": "src",
+      "outDir": "dist",
+      "esModuleInterop": true,
+      "forceConsistentCasingInFileNames": true,
+      "strict": true,
+      "skipLibCheck": true
+    },
+    "include": ["src"]
+}
+  
+
+---------------------------------------------
+FILE: ./.env.example
+---------------------------------------------
+
+
+
+---------------------------------------------
+FILE: ./migrations/functions/mark_payment_failed_by_session.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION mark_payment_failed_by_session(
+    p_session_id TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_payment payments%ROWTYPE;
+BEGIN
+    SELECT *
+    INTO v_payment
+    FROM payments
+    WHERE provider_payment_id = p_session_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'Payment with provider_payment_id % not found', p_session_id;
+    END IF;
+
+    -- Idempotency: if already failed, do nothing
+    IF v_payment.status = 'failed' THEN
+        RETURN;
+    END IF;
+
+    -- Only allow transition from 'pending' → 'failed'
+    IF v_payment.status <> 'pending' THEN
+        RAISE EXCEPTION
+            'Cannot mark payment % as failed from status %',
+            v_payment.payment_id, v_payment.status;
+    END IF;
+
+    UPDATE payments
+    SET status = 'failed'
+    WHERE payment_id = v_payment.payment_id;
+
+    -- Usually you keep the order 'pending' so the user can retry.
+    -- If you want to mark the order differently, you can do it here.
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/functions/create_order.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION create_order (
+    p_user_id UUID,
+    p_shipping_address_id INT,
+    p_items JSONB -- [{product_id, quantity}, ...]
+)
+RETURNS UUID
+LANGUAGE plpgsql
+as $$
+DECLARE
+    v_product_id    UUID;
+    v_order_id      UUID;
+    v_unit_price    NUMERIC(10, 2);
+    v_quantity      INT;
+    v_item          JSONB;
+    v_item_total    NUMERIC(10, 2);
+    v_total         NUMERIC := 0;
+BEGIN
+    -- 1) Validate items and calculate total
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    LOOP
+        v_product_id    := (v_item->>'product_id')::UUID;
+        v_quantity      := (v_item->>'quantity')::INT;
+
+        SELECT price INTO v_unit_price
+        FROM products
+        WHERE product_id = v_product_id;
+
+        IF v_unit_price IS NULL THEN
+            RAISE EXCEPTION 'Price of product % not found', v_product_id;
+        END IF;
+
+        PERFORM 1 FROM product_inventory
+        WHERE product_id = v_product_id
+            AND stock >= v_quantity;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Insufficient stock for product %', v_product_id;
+        END IF;
+
+        v_item_total    := v_unit_price * v_quantity;
+        v_total         := v_total + v_item_total;
+    END LOOP;
+
+    -- 2) Insert order
+    INSERT INTO orders (user_id, shipping_address_id, total)
+    VALUES(p_user_id, p_shipping_address_id, v_total)
+    RETURNING order_id INTO v_order_id;
+
+    -- 3) Insert items + update stock
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    LOOP
+        v_product_id    := (v_item->>'product_id')::UUID;
+        v_quantity      := (v_item->>'quantity')::INT;
+
+        SELECT price INTO v_unit_price
+        FROM products
+        WHERE product_id = v_product_id;
+
+        INSERT INTO order_items (order_id, product_id ,quantity, price)
+        VALUES(v_order_id, v_product_id, v_quantity, v_unit_price);
+
+        UPDATE product_inventory
+        SET
+            stock = stock - v_quantity,
+            last_updated = NOW()
+        WHERE product_id = v_product_id;
+
+    END LOOP;
+
+    return v_order_id;
+END;
+$$;
+        
+
+---------------------------------------------
+FILE: ./migrations/functions/create_user_with_details.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION create_user_with_details (
+    p_email TEXT,
+    p_username TEXT,
+    p_password TEXT,
+    p_role TEXT,
+    p_full_name TEXT,
+    p_phone TEXT,
+    p_street TEXT,
+    p_city TEXT,
+    p_state TEXT,
+    p_postal_code TEXT,
+    p_country TEXT
+)
+RETURNS TABLE ("user_id" UUID, user_role TEXT, address_id INT, err_msg TEXT) as $$
+DECLARE
+    v_user_id UUID;
+BEGIN
+    --- transaction block Begin
+    INSERT INTO users (email, username, password_hash)
+    VALUES (p_email, p_username, p_password)
+    RETURNING users.user_id INTO v_user_id;
+
+    INSERT INTO user_role (user_id, roles)
+    VALUES (v_user_id, p_role);
+
+    INSERT INTO addresses (user_id, full_name, phone, street, city, "state", postal_code, country)
+    VALUES (v_user_id, p_full_name, p_phone, p_street, p_city, p_state, p_postal_code, p_country)
+    RETURNING addresses.address_id INTO address_id;
+
+    RETURN QUERY SELECT v_user_id as "user_id", p_role as user_role, address_id, err_msg;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- RAISE NOTICE 'Error creating user: %', SQLERRM
+        -- ROLLBACK;
+        RETURN QUERY SELECT NULL::UUID, NULL::TEXT, NULL::INT, SQLERRM;
+END;
+$$ LANGUAGE PLPGSQL;
+
+---------------------------------------------
+FILE: ./migrations/functions/create_product_with_details.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION create_product (
+    p_user_id       UUID,
+    p_name          TEXT,
+    p_description   TEXT,
+    p_price         NUMERIC(10, 2),
+    p_attributes    JSONB,
+    p_stock         INT,
+    p_category_id   INT
+)
+RETURNS TABLE ("product_id" UUID, err_msg TEXT) as $$
+DECLARE 
+    v_product_id UUID;
+BEGIN
+    INSERT INTO products (user_id, category_id, "name", "description", price, "attributes")
+    VALUES (p_user_id, p_category_id, p_name, p_description, p_price, p_attributes)
+    RETURNING products.product_id INTO v_product_id;
+
+    INSERT INTO product_inventory (product_id, stock)
+    VALUES (v_product_id, p_stock);
+
+    RETURN QUERY SELECT v_product_id as "product_id", err_msg;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN QUERY SELECT NULL::UUID, SQLERRM;
+END;
+$$ LANGUAGE PLPGSQL;
+
+---------------------------------------------
+FILE: ./migrations/functions/mark_payment_failed_by_id.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION mark_payment_failed_by_id(
+    p_payment_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_payment payments%ROWTYPE;
+BEGIN
+    SELECT *
+    INTO v_payment
+    FROM payments
+    WHERE payment_id = p_payment_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'Payment with id % not found', p_payment_id;
+    END IF;
+
+    IF v_payment.status = 'failed' THEN
+        RETURN;
+    END IF;
+
+    IF v_payment.status <> 'pending' THEN
+        RAISE EXCEPTION
+            'Cannot mark payment % as failed from status %',
+            v_payment.payment_id, v_payment.status;
+    END IF;
+
+    UPDATE payments
+    SET status = 'failed'
+    WHERE payment_id = v_payment.payment_id;
+
+    -- Again, you can decide to update orders here if you want
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/functions/modify_order.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION modify_order (
+    p_order_id UUID,
+    p_modifications JSONB  -- [{ "product_id": "...", "quantity": 5 }, ...]
+)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_product_id      UUID;
+    v_new_quantity    INT;
+    v_old_quantity    INT;
+    v_delta           INT;
+    v_unit_price      NUMERIC(10, 2);
+    v_item_total      NUMERIC(10, 2);
+    v_total           NUMERIC(10, 2) := 0;
+    v_item            JSONB;
+    v_stock           INT;
+BEGIN
+    -- 1) For each modified item: adjust inventory and compute total
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_modifications)
+    LOOP
+        v_product_id   := (v_item->>'product_id')::UUID;
+        v_new_quantity := (v_item->>'quantity')::INT;
+
+        -- Get old quantity from order_items (source of truth)
+        SELECT quantity INTO v_old_quantity
+        FROM order_items
+        WHERE order_id = p_order_id
+          AND product_id = v_product_id;
+
+        IF v_old_quantity IS NULL THEN
+            RAISE EXCEPTION 'Order item for product % not found in order %',
+                v_product_id, p_order_id;
+        END IF;
+
+        v_delta := v_new_quantity - v_old_quantity;  -- + means more, - means less
+
+        -- Only touch inventory if quantity actually changes
+        IF v_delta <> 0 THEN
+            -- Lock row to avoid race conditions
+            SELECT stock INTO v_stock
+            FROM product_inventory
+            WHERE product_id = v_product_id
+            FOR UPDATE;
+
+            IF v_stock IS NULL THEN
+                RAISE EXCEPTION 'Inventory row for product % not found', v_product_id;
+            END IF;
+
+            IF v_delta > 0 THEN
+                -- need more stock
+                IF v_stock < v_delta THEN
+                    RAISE EXCEPTION 'Insufficient stock for product %', v_product_id;
+                END IF;
+                v_stock := v_stock - v_delta;
+            ELSE
+                -- returning stock (quantity decreased)
+                v_stock := v_stock + (-v_delta); -- add back abs(delta)
+            END IF;
+
+            UPDATE product_inventory
+            SET stock = v_stock,
+                last_updated = now()
+            WHERE product_id = v_product_id;
+        END IF;
+
+        -- Recompute price & line total for new quantity
+        SELECT price INTO v_unit_price
+        FROM products
+        WHERE product_id = v_product_id;
+
+        IF v_unit_price IS NULL THEN
+            RAISE EXCEPTION 'Price of product % not found', v_product_id;
+        END IF;
+
+        v_item_total := v_unit_price * v_new_quantity;
+        v_total      := v_total + v_item_total;
+    END LOOP;
+
+    -- 2) Update order total
+    UPDATE orders 
+    SET total = v_total
+    WHERE order_id = p_order_id;
+
+    -- 3) Update each order_item row
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_modifications)
+    LOOP
+        v_product_id   := (v_item->>'product_id')::UUID;
+        v_new_quantity := (v_item->>'quantity')::INT;
+
+        SELECT price INTO v_unit_price
+        FROM products
+        WHERE product_id = v_product_id;
+
+        UPDATE order_items
+        SET
+            quantity = v_new_quantity,
+            price    = v_unit_price
+        WHERE 
+            order_id   = p_order_id
+            AND product_id = v_product_id;
+    END LOOP;
+
+    RETURN p_order_id;
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/functions/delete_product_in_order.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION delete_product_in_order(
+    p_order_id   UUID,
+    p_product_id UUID
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_quantity    INT;
+    v_price       NUMERIC(10, 2);
+    v_line_total  NUMERIC(10, 2);
+    v_item_count  INT;
+BEGIN
+    -- Get quantity and price from the order item (source of truth)
+    
+    PERFORM 1 FROM orders
+    WHERE order_id = p_order_id
+        AND status = 'pending';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Only pending orders can be modified. Order % has status %',
+        p_order_id,(SELECT status FROM orders WHERE order_id = p_order_id);
+    END IF;
+
+    SELECT quantity, price, total
+    INTO v_quantity, v_price, v_line_total
+    FROM order_items
+    WHERE order_id = p_order_id
+      AND product_id = p_product_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Order item for product % not found in order %',
+            p_product_id, p_order_id;
+    END IF;
+
+    -- Count how many items the order has
+    SELECT COUNT(*)
+    INTO v_item_count
+    FROM order_items
+    WHERE order_id = p_order_id;
+
+    -- Return stock to inventory
+    UPDATE product_inventory
+    SET stock = stock + v_quantity,
+        last_updated = now()
+    WHERE product_id = p_product_id;
+
+    -- Decrease order total
+    UPDATE orders
+    SET total = total - v_line_total
+    WHERE order_id = p_order_id;
+
+    -- Delete the order item
+    
+    -- (    
+        -- DELETE FROM order_items
+        -- WHERE order_id = p_order_id
+        --   AND product_id = p_product_id;
+    -- )
+
+    -- Added a `status` column to `order_items` to support operational tracking of
+    -- order confirmations and cancellations, improving visibility into revenue impact
+    -- and customer payment obligations.
+
+    UPDATE order_items
+    SET status = 'cancelled'
+    WHERE order_id = p_order_id;
+
+    IF v_item_count = 1 THEN
+        UPDATE orders
+        SET status = 'cancelled'
+        WHERE order_id = p_order_id;
+        RETURN format(
+          'Product %s deleted and order %s cancelled (no more items)',
+          p_product_id, p_order_id
+        );
+    END IF;
+
+    RETURN format(
+        'Product %s has been deleted from order %s',
+        p_product_id, p_order_id
+    );
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/functions/mark_payment_completed_by_id.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION mark_payment_completed_by_id(
+    p_payment_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_payment payments%ROWTYPE;
+BEGIN
+    SELECT *
+    INTO v_payment
+    FROM payments
+    WHERE payment_id = p_payment_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'Payment with id % not found', p_payment_id;
+    END IF;
+
+    IF v_payment.status = 'completed' THEN
+        RETURN;
+    END IF;
+
+    IF v_payment.status <> 'pending' THEN
+        RAISE EXCEPTION
+            'Cannot mark payment % as completed from status %',
+            v_payment.payment_id, v_payment.status;
+    END IF;
+
+    UPDATE payments
+    SET
+        status  = 'completed',
+        paid_at = COALESCE(paid_at, now())
+    WHERE payment_id = v_payment.payment_id;
+
+    IF v_payment.order_id IS NOT NULL THEN
+        UPDATE orders
+        SET status = 'paid'
+        WHERE order_id = v_payment.order_id;
+    END IF;
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/functions/set_order_items_cancelled.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION set_order_items_cancelled()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Only act when status actually changes to 'cancelled'
+  IF NEW.status = 'cancelled'
+     AND (OLD.status IS DISTINCT FROM NEW.status) THEN
+
+    UPDATE order_items
+    SET status = 'cancelled'
+    WHERE order_id = NEW.order_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/functions/mark_payment_completed_by_session.sql
+---------------------------------------------
+
+CREATE OR REPLACE FUNCTION mark_payment_completed_by_session(
+    p_session_id TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_payment  payments%ROWTYPE;
+BEGIN
+    -- Lock the payment row for this session
+    SELECT *
+    INTO v_payment
+    FROM payments
+    WHERE provider_payment_id = p_session_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'Payment with provider_payment_id % not found', p_session_id;
+    END IF;
+
+    -- Idempotency: if already completed, do nothing
+    IF v_payment.status = 'completed' THEN
+        RETURN;
+    END IF;
+
+    -- Only allow transition from 'pending' → 'completed'
+    IF v_payment.status <> 'pending' THEN
+        RAISE EXCEPTION
+            'Cannot mark payment % as completed from status %',
+            v_payment.payment_id, v_payment.status;
+    END IF;
+
+    -- Update payment
+    UPDATE payments
+    SET
+        status  = 'completed',
+        paid_at = COALESCE(paid_at, now())
+    WHERE payment_id = v_payment.payment_id;
+
+    -- Update order: mark as paid if linked
+    IF v_payment.order_id IS NOT NULL THEN
+        UPDATE orders
+        SET status = 'paid'
+        WHERE order_id = v_payment.order_id;
+    END IF;
+END;
+$$;
+
+
+---------------------------------------------
+FILE: ./migrations/008-payments.sql
+---------------------------------------------
+
+-- ENUM: payment_status
+CREATE TYPE payment_status AS ENUM ('pending','completed','failed');
+
+-- Payment methods table
+CREATE TABLE payment_methods (
+    method_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL
+);
+
+-- Payments table (one row per attempt, NOT UNIQUE per order)
+CREATE TABLE payments (
+    payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id   UUID REFERENCES orders(order_id) ON DELETE SET NULL,
+    method_id  INT REFERENCES payment_methods(method_id),
+    amount     NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+    status     payment_status DEFAULT 'pending',
+    provider   TEXT,              -- e.g. 'stripe_checkout'
+    provider_payment_id TEXT,     -- Stripe session id (or PaymentIntent id)
+    metadata   JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    paid_at    TIMESTAMPTZ
+);
+
+-- Payment methods values
+
+INSERT INTO payment_methods (name) VALUES
+    ('stripe_card'),
+    ('paypal'),
+    ('cash_on_delivery'),
+    ('bank_transfer');
+
+
+-- Useful indexes
+CREATE INDEX idx_payments_order_id ON payments(order_id);
+CREATE INDEX idx_payments_provider_payment_id ON payments(provider_payment_id);
+
+
+---------------------------------------------
+FILE: ./migrations/001-init.sql
+---------------------------------------------
+
+-- 001-init.sql
+
+-- Enable extensions
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+---------------------------------------------
+FILE: ./migrations/004-link-register.sql
+---------------------------------------------
+
+ALTER TABLE products
+ADD COLUMN user_id UUID REFERENCES users(user_id) ON DELETE CASCADE;
+
+---------------------------------------------
+FILE: ./migrations/005-sales.sql
+---------------------------------------------
+
+CREATE TYPE order_status as ENUM ('pending','paid','shipped','delivered','cancelled');
+
+CREATE TABLE orders (
+    order_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(user_id),
+    shipping_address_id INT REFERENCES addresses(address_id),
+    total NUMERIC(10,2),
+    status order_status DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE order_items (
+    order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id),
+    quantity INT check (quantity > 0),
+    price NUMERIC(10, 2),
+    total NUMERIC(10, 2) generated always as (quantity * price) stored,
+    PRIMARY KEY(order_id, product_id)
+);
+
+---------------------------------------------
+FILE: ./migrations/007-trigger-product-orders-status.sql
+---------------------------------------------
+
+CREATE TRIGGER trg_order_cancelled
+AFTER UPDATE OF status ON orders
+FOR EACH ROW
+WHEN (NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION set_order_items_cancelled();
+
+
+---------------------------------------------
+FILE: ./migrations/003-register.sql
+---------------------------------------------
+
+CREATE TABLE categories (
+  category_id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE products (
+  product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_id INT REFERENCES categories(category_id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+  attributes JSONB,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE product_inventory (
+  product_id UUID PRIMARY KEY REFERENCES products(product_id) ON DELETE CASCADE,
+  stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  last_updated TIMESTAMPTZ
+);
+
+
+---------------------------------------------
+FILE: ./migrations/002-user.sql
+---------------------------------------------
+
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(50) UNIQUE NOT NULL,
+    email_verified BOOLEAN DEFAULT false,
+    username VARCHAR(20) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE user_role (
+    user_id UUID REFERENCES users(user_id) on DELETE CASCADE,
+    roles TEXT NOT NULL CHECK (roles IN ('costumer', 'admin', 'manager', 'seller', 'driver')), 
+    UNIQUE(user_id, roles)
+);
+
+
+CREATE TABLE addresses (
+  address_id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  street TEXT NOT NULL,
+  city TEXT NOT NULL,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ
+);
+
+---------------------------------------------
+FILE: ./migrations/006-orders-tracking.sql
+---------------------------------------------
+
+CREATE TYPE product_status as ENUM ('confirmed', 'cancelled');
+
+ALTER TABLE order_items
+ADD COLUMN status product_status DEFAULT 'confirmed';
+
+---------------------------------------------
+FILE: ./docker/Dockerfile
+---------------------------------------------
+
+FROM node:20
+
+WORKDIR /usr/src/app
+
+COPY ../package*.json ./
+RUN npm install
+
+COPY ../ .
+
+RUN npm install
+
+# For development (hot reload with nodemon)
+RUN npm install -g ts-node nodemon
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+
+
+---------------------------------------------
+FILE: ./docker/docker-compose.yaml
+---------------------------------------------
+
+services:
+  db:
+    image: postgres:17
+    container_name: app_db
+    restart: always
+    environment:
+      POSTGRES_USER: dbuser
+      POSTGRES_PASSWORD: dbpassword
+      POSTGRES_DB: myapp
+    ports:
+      - "5342:5432"   # ✅ Host:Container — Corrected
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbuser -d myapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # app:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: api_app
+  #   restart: always
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   environment:
+  #     NODE_ENV: development
+  #     DATABASE_URL: postgres://dbuser:dbpassword@db:5432/myapp
+  #   volumes:
+  #     - .:/usr/src/app
+  #   command: npm run dev
+
+volumes:
+  db_data:
+
+---------------------------------------------
+FILE: ./src/modules/product/product.controller.ts
+---------------------------------------------
+
+import { Response, Request } from "express";
+import { AuthRequest } from "../../middlware/auth";
+import { productService } from "./product.service";
+import { products } from "./product.type";
+import { off } from "process";
+
+export class productController {
+
+    // get all products
+    static async products(req: AuthRequest, res: Response) {
+        if (req.user?.role == "costumer" 
+            || req.user?.role == "seller"
+            || req.user?.role == "admin") {
+                const page = parseInt(req.query.page as string) || 1;
+                const limit = parseInt(req.query.limit as string) || 10;
+                const offset = (page - 1) * limit;
+                console.log(limit);
+                console.log(offset);
+
+                const prodcust = await productService.allProducts(limit, offset, "");
+                res.json(prodcust);
+            }
+        else res.json({msg: 'waloo'});
+    }
+
+    // post products
+    static async newProducts(req: AuthRequest, res: Response) {
+        const user_id = String(req.user?.user_id);
+        const product_data : products = req.body;
+        // console.log(product_data);
+        const response = await productService.createProduct(user_id, product_data)
+        res.json(response);
+    }
+
+    // modify products
+    static async modifyProduct(req: AuthRequest, res: Response) {
+        const product_id = String(req.params.id);
+        const product_data : products = req.body;
+        const response = await productService.updateProduct(product_id, product_data);
+        res.json(response);
+    }
+
+    // delete products
+    static async deleteProduct(req: AuthRequest, res: Response) {
+        const product_id = String(req.params.id);
+        const response = await productService.deleteProduct(product_id);
+        res.json(response);
+    }
+    
+    // get my products
+    static async userProducts(req: AuthRequest, res: Response) {
+        const user_id = String(req.user?.user_id);
+        
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = (page - 1) * limit;
+
+        const response = await productService.allProducts(limit, offset, user_id);
+        res.json(response);
+    }
+
+    // get some one's products
+    static async othersProducts(req: AuthRequest, res: Response) {
+        const user_id = String(req.query.id);
+
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = (page - 1) * limit;
+
+        const response = await productService.userProducts(limit, offset, user_id);
+        res.json(response);
+    }
+
+    // implemeting this EP would need 
+    // the definition of sales and order APIs first
+    static async analyzeproducts() {
+        
+    }
+}
+
+---------------------------------------------
+FILE: ./src/modules/product/product.queries.ts
+---------------------------------------------
+
+import SQL, { SQLStatement } from "sql-template-strings";
+
+export const ProductQueries = {
+
+    // JOIN user's data with product
+    // filtering logic still nedded (price, stock, name, ...) DYNAMIC
+    all: (limit: number, offset: number, user_id?: string) => {
+        const query = SQL`
+          SELECT 
+            p.product_id,
+            p.name,
+            p.price,
+            p.description,
+            p.created_at AS "product_date",
+            p.attributes,
+            json_build_object(
+              'category', c.name
+            ) AS category,
+            json_build_object(
+              'stock', pi.stock
+            ) AS stock
+          FROM
+            products p
+          JOIN categories c ON c.category_id = p.category_id
+          JOIN product_inventory pi ON pi.product_id = p.product_id
+        `;
+    
+        if (user_id && user_id.length > 0) {
+          query.append(SQL` WHERE p.user_id = ${user_id}`);
+        }
+    
+        query.append(SQL` LIMIT ${limit} OFFSET ${offset}`);
+    
+        return query;
+    },
+    
+
+    update: (product_id: string, product_date: any) => {
+
+        const query = SQL`UPDATE products SET `;
+        const fields: SQLStatement[] = [];
+    
+        if (product_date.category_id) fields.push(SQL`category_id = ${product_date.category_id}`);
+        if (product_date.name) fields.push(SQL`name = ${product_date.name}`);
+        if (product_date.description) fields.push(SQL`description = ${product_date.description}`);
+        if (product_date.price) fields.push(SQL`price = ${product_date.price}`);
+        if (product_date.attributes) fields.push(SQL`attributes = ${product_date.attributes}`);
+        if (fields.length > 0) {
+            fields.push(SQL`updated_at = NOW()`);
+            // query.append(fields.join(", "));
+            fields.forEach((field, i) => {
+                if (i > 0) query.append(SQL`, `);
+                query.append(field);
+            });
+            query.append(SQL` WHERE product_id = ${product_id} RETURNING *;`)
+            // console.log(query);
+    
+            return query;
+        }
+        else return null;
+
+    },
+
+    updateStock: (product_id: string, stock: number) => SQL`
+        UPDATE product_inventory SET
+        stock = ${stock},
+        last_updated = NOW()
+        WHERE product_id = ${product_id}
+    `,
+
+    delete: (product_id: string) => SQL`
+        DELETE FROM products
+        WHERE product_id = ${product_id};
+    `,
+
+
+}
+
+---------------------------------------------
+FILE: ./src/modules/product/product.repository.ts
+---------------------------------------------
+
+import { resourceUsage } from "process";
+import pool from "../../db/config";
+import { QueryResult } from "pg";
+import { ProductQueries } from "./product.queries";
+import { products } from "./product.type";
+
+
+export class ProductRepository {
+
+    static async all(limit: number, offset: number, user_id: string) : Promise<any | null> {
+        const query = ProductQueries.all(limit, offset, user_id);
+        console.log(query);
+        const result : QueryResult<any> = await pool.query(query);
+        return result.rows[0];
+    }
+
+    static async userProducts(limit: number, offset: number, user_id: string): Promise<any | null> {
+        const query = ProductQueries.all(limit, offset, user_id);
+        const result : QueryResult<any> = await pool.query(query);
+        return result;
+    }
+
+    static async create(user_id: string, product_data: any): Promise<any | null> {
+        // before testing inject SQL FUNCTION "create_product"
+        console.log(product_data.name);
+        const result: QueryResult<any> = await pool.query(`
+            SELECT * FROM create_product(
+            $1, $2, $3, $4, $5, $6, $7
+        )`, [
+                user_id,
+                product_data.name,
+                product_data.description,
+                product_data.price,
+                product_data.attributes,
+                product_data.stock,
+                product_data.category_id
+            ]
+        );
+        return result.rows[0];
+    }
+
+    static async update(product_id: string, product_data: products): Promise<any | null> {
+        const productQuery = ProductQueries.update(product_id, product_data);      // dynamic SET ...
+        const stockQuery =
+          product_data.stock !== undefined ? ProductQueries.updateStock(product_id, product_data.stock) : null;
+      
+        await pool.query("BEGIN");
+        try {
+          if (productQuery) await pool.query(productQuery);
+          if (stockQuery) await pool.query(stockQuery);
+          await pool.query("COMMIT");
+        } catch (e) {
+          await pool.query("ROLLBACK");
+          throw e;
+        }
+    }
+
+    static async delete(product_id: string) : Promise<any | null> {
+        const query = ProductQueries.delete(product_id);
+        const result : QueryResult<any> = await pool.query(query);
+        return result.rows[0];
+    }
+
+}
+
+---------------------------------------------
+FILE: ./src/modules/product/product.service.ts
+---------------------------------------------
+
+import { ProductRepository } from "./product.repository";
+import { products } from "./product.type";
+
+
+export class productService {
+
+    static async allProducts(limit: number, offset: number, user_id: string) : Promise<any | null>{
+        const response = await ProductRepository.all(limit, offset, user_id);
+        console.log(response);
+        return response; 
+    }
+
+    static async userProducts(limit: number, offset: number, user_id: string) : Promise<any | null> {
+        const response = await ProductRepository.userProducts(limit, offset, user_id);
+        return response;
+    }
+    
+    static async createProduct(user_id: string, product_data: products) : Promise<any | null> {
+        const response = await ProductRepository.create(user_id, product_data);
+        return response;
+    }
+    
+    static async updateProduct(product_id: string, product_data: products): Promise<any | null> {
+        try {
+            const response = await ProductRepository.update(product_id, product_data);
+            return response;
+        } catch (error) {
+            return {msg: error, status: 500};
+        }
+    }
+    
+    static async deleteProduct(product_id: string): Promise<any | null> {
+        const response = await ProductRepository.delete(product_id);
+        return response;
+    }
+}
+
+---------------------------------------------
+FILE: ./src/modules/product/product.type.ts
+---------------------------------------------
+
+export interface products {
+    category_id?: number,
+    name?: string,
+    description?: string,
+    price?: number,
+    attributes?: JSON,
+    stock?: number
+};
+
+export interface product_id {
+    product_id: string
+};
+
+---------------------------------------------
+FILE: ./src/modules/payment/payment.controller.ts
+---------------------------------------------
+
+// src/modules/payment/payment.controller.ts
+import { Response } from "express";
+import { AuthRequest } from "../../middlware/auth";
+import Stripe from "stripe";
+import { paymentService } from "./payment.service";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+
+
+export class paymentController {
+  /**
+   * Create Stripe Checkout Session for an order
+   * Body: { order_id: string, method_id: number }
+   */
+  static async createCheckoutSession(req: AuthRequest, res: Response) {
+    try {
+      const { order_id, method_id } = req.body;
+      const user_id = req.user!.user_id;
+
+      if (!order_id || !method_id) {
+        return res.status(400).json({ msg: "order_id and method_id are required" });
+      }
+
+      // 1. Load and validate order (belongs to user, status pending, etc.)
+      const order = await paymentService.getOrderForPayment(order_id, user_id);
+      if (!order) {
+        return res.status(404).json({ msg: "Order not found or not payable" });
+      }
+      console.log("order : " + order);
+      // 2. Create pending payment record in DB
+      const payment = await paymentService.createPendingPayment({
+        order_id,
+        method_id,
+        amount: Number(order.total), // NUMERIC from DB
+        provider: "stripe_checkout",
+      });
+      console.log("payment : " + payment);
+
+      // 3. Create Stripe Checkout Session
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+
+        
+        // You can build real line_items based on order_items later.
+        // For now, one line with total amount:
+        line_items: [
+          {
+            price_data: {
+              currency: "usd", // or "mad" if enabled
+              unit_amount: Math.round(Number(order.total) * 100), // cents
+              product_data: {
+                name: `Order ${order_id}`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+
+        // These URLs should be your frontend URLs
+        success_url: `${process.env.FRONTEND_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL}/checkout/cancel?order_id=${order_id}`,
+
+        metadata: {
+          order_id,
+          payment_id: payment.payment_id,
+          user_id,
+        },
+      });
+
+      console.log("session : " + session);
+      // 4. Save Stripe session id to payment row
+      await paymentService.attachStripeSession(payment.payment_id, session.id);
+
+      return res.status(200).json({
+        checkout_url: session.url,
+        payment_id: payment.payment_id,
+      });
+    } catch (err: any) {
+      console.error("[createCheckoutSession] error:", err);
+      return res.status(500).json({ msg: "Failed to create checkout session" });
+    }
+  }
+
+  static async getPaymentById(req: AuthRequest, res: Response) {
+    try {
+      const payment_id = req.params.id;
+      const user_id = req.user!.user_id;
+
+      const payment = await paymentService.getPaymentById(payment_id, user_id);
+      if (!payment) return res.status(404).json({ msg: "Payment not found" });
+
+      return res.json(payment);
+    } catch (err: any) {
+      console.error("[getPaymentById] error:", err);
+      return res.status(500).json({ msg: "Failed to get payment" });
+    }
+  }
+
+  static async getPaymentByOrderId(req: AuthRequest, res: Response) {
+    try {
+      const order_id = req.params.id;
+      const user_id = req.user!.user_id;
+        console.log(user_id)
+        console.log(order_id)
+
+      const payment = await paymentService.getPaymentByOrderId(order_id, user_id);
+    
+      if (!payment) return res.status(404).json({ msg: "Payment not found" });
+
+      return res.json(payment);
+    } catch (err: any) {
+      console.error("[getPaymentByOrderId] error:", err);
+      return res.status(500).json({ msg: "Failed to get payment" });
+    }
+  }
+}
+
+
+---------------------------------------------
+FILE: ./src/modules/payment/payment.service.ts
+---------------------------------------------
+
+import { paymentRepository } from "./payment.repository";
+import { PendingPaymentParams } from "./payment.type";
+import { OrderForPayment, PaymentRow } from "./payment.type";
+  
+export class paymentService {
+    /**
+     * Load order for payment, ensuring:
+     * - exists
+     * - belongs to user
+     * - status = 'pending'
+     */
+    static async getOrderForPayment(order_id: string,user_id: string): Promise<OrderForPayment | null> {
+      return await paymentRepository.getOrderForPayment(order_id, user_id);
+    }
+  
+    /**
+     * Create a new pending payment attempt for this order.
+     */
+    static async createPendingPayment(params: PendingPaymentParams ): Promise<PaymentRow> {
+      return await paymentRepository.createPendingPayment(params);
+    }
+
+    /**
+     * Attach Stripe Checkout session id to internal payment record.
+     */
+    static async attachStripeSession(payment_id: string,session_id: string): Promise<void> {
+      await paymentRepository.attachStripeSession(payment_id, session_id);
+    }
+  
+    /**
+     * Get a single payment by id, checking that it belongs to this user.
+     */
+    static async getPaymentById(payment_id: string,user_id: string): Promise<PaymentRow | null> {
+      return await paymentRepository.getPaymentById(payment_id, user_id);
+    }
+  
+    /**
+     * Get the latest payment attempt for an order, for this user.
+     */
+    static async getPaymentByOrderId(order_id: string,user_id: string): Promise<PaymentRow | null> {
+      return await paymentRepository.getLatestPaymentByOrderId(order_id, user_id);
+    }
+  
+    /**
+     * Called from Stripe webhook when checkout.session.completed (paid)
+     */
+    static async markPaymentCompletedBySession(session_id: string): Promise<void> {
+      const payment = await paymentRepository.markPaymentCompletedBySession(
+        session_id
+      );
+  
+      if (!payment || !payment.order_id) {
+        console.warn(
+          "[markPaymentCompletedBySession] payment not found or has no order_id for session:",
+          session_id
+        );
+        return;
+      }
+  
+      // For now, mark order as 'paid'
+      await paymentRepository.updateOrderStatus(payment.order_id, "paid");
+    }
+  
+    /**
+     * Called from Stripe webhook when payment fails (if you handle that event)
+     */
+    static async markPaymentFailedBySession(session_id: string): Promise<void> {
+      const payment = await paymentRepository.markPaymentFailedBySession(
+        session_id
+      );
+  
+      if (!payment || !payment.order_id) {
+        console.warn(
+          "[markPaymentFailedBySession] payment not found or has no order_id for session:",
+          session_id
+        );
+        return;
+      }
+  
+      // Usually you keep order as 'pending' so user can retry.
+      // But you could also add an 'payment_failed' status in the orders table.
+    }
+  }
+  
+
+---------------------------------------------
+FILE: ./src/modules/payment/payment.type.ts
+---------------------------------------------
+
+export interface PendingPaymentParams {
+    order_id: string;
+    method_id: number;
+    amount: number;
+    provider: string;
+}
+export interface OrderForPayment {
+    order_id: string;
+    user_id: string;
+    total: string; // NUMERIC from pg comes as string
+    status: string;
+}
+
+export interface PaymentRow {
+    payment_id: string;
+    order_id: string | null;
+    method_id: number | null;
+    amount: string;
+    status: string;
+    provider: string | null;
+    provider_payment_id: string | null;
+    metadata: any;
+    created_at: Date;
+    paid_at: Date | null;
+}
+
+  
+
+---------------------------------------------
+FILE: ./src/modules/payment/payment.queries.ts
+---------------------------------------------
+
+import SQL from "sql-template-strings"
+
+export const PaymentQueries = {
+
+    getOrderForPayment: (order_id: string, user_id: string) => SQL`
+        SELECT order_id, user_id, total, status
+        FROM orders
+        WHERE order_id = ${order_id}
+            AND user_id = ${user_id}
+            AND status = 'pending';
+    `,
+
+    createPendingPayment: (order_id: string,method_id: number,amount: number,provider: string) => SQL`
+        INSERT INTO payments (order_id, method_id, amount, status, provider)
+        VALUES (${order_id}, ${method_id}, ${amount}, 'pending', ${provider})
+        RETURNING *;
+    `,
+
+    attachStripeSession: (payment_id: string, session_id: string) => SQL`
+        UPDATE payments
+        SET
+        provider_payment_id = ${session_id},
+        metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{stripe_session_id}',
+            to_jsonb(${session_id}::text),
+            true
+        )
+        WHERE payment_id = ${payment_id};
+    `,
+
+    getPaymentById: (payment_id: string, user_id: string) => SQL`
+        SELECT p.*
+        FROM payments p
+        JOIN orders o ON p.order_id = o.order_id
+        WHERE p.payment_id = ${payment_id}
+            AND o.user_id = ${user_id};
+    `,
+
+    getLatestPaymentByOrderId: (order_id: string,user_id: string) => SQL`
+        SELECT p.*
+        FROM payments p
+        JOIN orders o ON p.order_id = o.order_id
+        WHERE p.order_id = ${order_id}
+            AND o.user_id = ${user_id}
+        ORDER BY p.created_at DESC
+        LIMIT 1;
+    `,
+
+    markPaymentCompletedBySession: (session_id: string) => SQL`
+        UPDATE payments
+        SET
+            status = 'completed',
+            paid_at = now()
+        WHERE provider_payment_id = ${session_id}
+        RETURNING *; 
+    `,
+
+    markPaymentFailedBySession: (session_id: string) => SQL`
+        UPDATE payments
+        SET status = 'failed'
+        WHERE provider_payment_id = ${session_id}
+        RETURNING *;
+    `,
+
+    updateOrderStatus: (order_id: string,status: string) => SQL`
+        UPDATE orders
+        SET status = ${status}
+        WHERE order_id = ${order_id};
+    `
+
+}
+
+---------------------------------------------
+FILE: ./src/modules/payment/payment.repository.ts
+---------------------------------------------
+
+import { QueryResult } from "pg";
+import pool from "../../db/config";
+import { OrderForPayment, PaymentRow } from "./payment.type";
+import { PaymentQueries } from "./payment.queries";
+
+export class paymentRepository {
+  /**
+   * Get order for payment:
+   * - must exist
+   * - must belong to user
+   * - must be in 'pending' status
+   */
+  static async getOrderForPayment(order_id: string, user_id: string): Promise<OrderForPayment | null> {
+    const query = PaymentQueries.getOrderForPayment(order_id, user_id);
+    const result: QueryResult<OrderForPayment> = await pool.query(query);
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Create a new pending payment attempt for this order.
+   * Multiple attempts per order are allowed.
+   */
+  static async createPendingPayment(params: {
+    order_id: string;
+    method_id: number;
+    amount: number;
+    provider: string;
+  }): Promise<PaymentRow> {
+    const { order_id, method_id, amount, provider } = params;
+    const query = PaymentQueries.createPendingPayment(order_id, method_id, amount, provider);
+    const result: QueryResult<PaymentRow> = await pool.query(query);
+
+    return result.rows[0];
+  }
+
+  /**
+   * Attach Stripe Checkout session id to a payment attempt.
+   */
+  static async attachStripeSession( payment_id: string, session_id: string): Promise<void> {
+    const query = PaymentQueries.attachStripeSession(payment_id, session_id);
+    await pool.query(query);
+  }
+
+  /**
+   * Get a payment by its id, making sure it belongs to this user
+   * (via joining orders.user_id).
+   */
+  static async getPaymentById(payment_id: string, user_id: string ): Promise<PaymentRow | null> {
+    const query = PaymentQueries.getPaymentById(payment_id, user_id);
+    const result: QueryResult<PaymentRow> = await pool.query(query);
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Get the latest payment attempt for a given order (for this user).
+   */
+  static async getLatestPaymentByOrderId(order_id: string,user_id: string): Promise<PaymentRow | null> {
+    const query = PaymentQueries.getLatestPaymentByOrderId(order_id, user_id);
+    const result: QueryResult<PaymentRow> = await pool.query(query);
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Mark a payment as completed using the Stripe session id.
+   * Returns the updated payment row (including its order_id).
+   */
+  static async markPaymentCompletedBySession(session_id: string): Promise<PaymentRow | null> {
+    const query = PaymentQueries.markPaymentCompletedBySession(session_id);
+    const result: QueryResult<PaymentRow> = await pool.query(query);
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Mark a payment as failed using the Stripe session id.
+   */
+  static async markPaymentFailedBySession(session_id: string): Promise<PaymentRow | null> {
+    const query = PaymentQueries.markPaymentFailedBySession(session_id);
+    const result: QueryResult<PaymentRow> = await pool.query(query);
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Update order status (e.g. to 'paid', 'cancelled', etc.)
+   */
+  static async updateOrderStatus(order_id: string,status: string): Promise<void> {
+    const query = PaymentQueries.updateOrderStatus(order_id, status);
+    await pool.query(query);
+  }
+}
+
+
+---------------------------------------------
+FILE: ./src/modules/order/order.repository.ts
+---------------------------------------------
+
+import { QueryResult } from "pg";
+import pool from "../../db/config";
+import { createOrder, modifyOrder } from "./order.type";
+import { orderQueries } from "./order.queries";
+
+export class orderRepository {
+
+    static async getOrder(order_id: string ,user_id: string) : Promise<any> {
+        const query = orderQueries.getOrder(order_id, user_id);
+        const result : QueryResult<any> = await pool.query(query);
+        return result.rows[0].order_id;
+    }
+
+    static async create(user_id: string, order: createOrder) : Promise<any>{
+        const result : QueryResult<any> = await pool.query(`
+            SELECT * FROM create_order(
+                $1, $2, $3
+        )`, [
+                user_id,
+                order.shipping_address_id,
+                JSON.stringify(order.items),
+            ]
+        );
+        return { order_id: result.rows[0].order_id };
+    }
+
+    static async modifyOrder(order_id: string, new_order: modifyOrder) : Promise<any>{
+        const result : QueryResult<any> = await pool.query(`
+            SELECT * FROM modify_order(
+                $1, $2
+        )`, [
+                order_id,
+                JSON.stringify(new_order.items)
+            ]
+        );
+        return { order_id: result.rows[0].order_id };
+    }
+
+    static async modifyAddress(address_id: number, order_id: string) : Promise<any>{
+        const query = orderQueries.modifyAddress(order_id, address_id);
+        try {
+            const result = await pool.query(query);
+            return result.rows[0];
+        } catch (error) {
+            return error;
+        }
+    }
+
+    static async deleteProduct(order_id: string, product_id: string) : Promise<any>{
+        const result = await pool.query(`
+            SELECT * FROM delete_product_in_order(
+                $1, $2
+            )`, [
+                    order_id,
+                    product_id
+                ]
+        );
+        return { message: result.rows[0].message };
+    }
+
+    static async deleteOrder(order_id: string) : Promise<any>{
+        const query = orderQueries.deleteOrder(order_id);
+        const result : QueryResult<any> = await pool.query(query);
+        return result.rows;
+    }
+
+    static async track() {
+        
+    }
+
+}
+
+---------------------------------------------
+FILE: ./src/modules/order/order.queries.ts
+---------------------------------------------
+
+import SQL from "sql-template-strings";
+
+export const orderQueries = {
+
+    getOrder: (order_id: string, user_id: string) => SQL`
+        SELECT odrer_id
+        FROM orders
+        WHERE order_id = ${order_id} AND user_id = ${user_id};
+    `,
+
+    
+    /**
+     * delete order needs to check and return stock to product
+     * inventory before it cancells order and Trigger cancells the linked products
+     * */ 
+    deleteOrder: (order_id : string) => SQL`
+        UPDATE orders
+        SET status = 'cancelled'
+        WHERE order_id = ${order_id};
+    `,
+
+    modifyAddress: (order_id: string, address_id: number) => SQL`
+        UPDATE orders
+        SET shipping_address_id = ${address_id}
+        WHERE order_id = ${order_id};
+    `,
+};
+
+---------------------------------------------
+FILE: ./src/modules/order/order.controller.ts
+---------------------------------------------
+
+import { AuthRequest } from "../../middlware/auth";
+import { Request, Response } from "express";
+import { createOrder, modifyOrder, shipping_address_id } from "./order.type";
+import { orderService } from "./order.service";
+import { product_id } from "../product/product.type";
+
+export class ordreController {
+
+    static async getOrder(req: AuthRequest, res: Response) {
+        const { id } = req.params;
+        const  user_id  = String(req.user?.user_id);
+
+        if (!user_id) res.status(404).json('user_id not found');
+        const order_id = await orderService.getOrder(id, user_id);
+        return order_id;
+    }
+
+    static async createOrder(req: AuthRequest, res: Response) {
+        const order : createOrder = req.body;
+        const user_id : string = String(req.user?.user_id);
+        
+        const response = await orderService.create(user_id, order); 
+        res.json(response);
+    }
+
+    static async modifyOrder(req: AuthRequest, res: Response) {
+        const order_id: string = String(req.params.id);
+        const new_order: modifyOrder = req.body;
+
+        const response = await orderService.modifyOrder(order_id, new_order);
+        res.json(response);
+    }
+
+    static async modifyOrder_address(req: AuthRequest, res: Response) {
+        const address_id: number = req.body.shipping_address_id;
+        console.log(address_id)
+        const order_id: string = String(req.params.id);
+        
+        const response = await orderService.modifyAddress(Number(address_id), order_id);
+        res.json(response);
+    }
+
+    static async deleteProduct(req: AuthRequest, res: Response) {
+        const product_id: string = req.body.product_id;
+        const order_id: string = String(req.params.id);
+
+        const response = await orderService.deleteProduct(order_id, String(product_id));
+        res.json(response);
+    }
+
+    static async deleteOrder(req: AuthRequest, res: Response) {
+        const order_id: string = String(req.params.id);
+
+        const response = await orderService.deleteOrder(order_id);
+        res.json(response);   
+    }
+
+    static async trackOrder(req: AuthRequest, res: Response) {
+
+        
+    }
+
+}
+
+---------------------------------------------
+FILE: ./src/modules/order/order.service.ts
+---------------------------------------------
+
+import { orderRepository } from "./order.repository";
+import { createOrder, modifyOrder } from "./order.type";
+
+
+export class orderService {
+
+    static async getOrder(order_id: string, user_id: string): Promise<any> {
+        return await orderRepository.getOrder(order_id, user_id);
+    }
+
+    static async create(user_id: string, order: createOrder): Promise<any> {
+        return await orderRepository.create(user_id, order);
+    }
+
+    static async modifyOrder(order_id: string, new_order: modifyOrder): Promise<any> {
+        return await orderRepository.modifyOrder(order_id, new_order);
+    }
+
+    static async modifyAddress(address_id: number, order_id: string): Promise<any> {
+        return await orderRepository.modifyAddress(address_id, order_id);
+    }
+
+    static async deleteProduct(order_id: string, product_id: string): Promise<any> {
+        return await orderRepository.deleteProduct(order_id, product_id);
+    }
+
+    static async deleteOrder(order_id: string): Promise<any> {
+        return await orderRepository.deleteOrder(order_id);
+    }   
+
+    static async track() {
+        
+    }
+
+}
+
+---------------------------------------------
+FILE: ./src/modules/order/order.type.ts
+---------------------------------------------
+
+export interface createOrder {
+    items : {
+        product_id: string,
+        quantity: number
+    }[],
+    shipping_address_id: number,
+};
+
+export interface modifyOrder {
+    items: {
+        product_id: string,
+        quantity: number
+    }[],
+};
+
+export interface shipping_address_id {
+    shipping_address_id: number,
+};
+
+
+
+---------------------------------------------
+FILE: ./src/modules/user/user.type.ts
+---------------------------------------------
+
+import { UUID } from "crypto";
+
+// export interface totalUsers {
+//     total: number
+// };
+
+export interface User {
+    user_id: UUID,
+    email: string,
+    username: string,
+    password_hash?: string,
+    role?: string, 
+    created_at: Date
+};
+
+export interface role {
+    roles: string
+};
+
+export interface address_id {
+    address_id: number,
+};
+
+export interface Userinfos {
+    email?: string,
+    username?: string,
+    password?: string,
+    role?: string,
+    full_name?: string,
+    phone?: string,
+    street?: string,
+    city?: string,
+    state?: string,
+    postal_code?: string,
+    country?: string,
+    // is_default?: boolean
+}
+
+// export interface UserAdrress {
+//     full_name: string,
+//     phone: string,
+//     street: string,
+//     city: string,
+//     state: string,
+//     postal_code: string,
+//     country: string
+// }
+
+export interface UserUpdate {
+    email?: string,
+    username?: string,
+    password?: string,
+};
+
+
+export interface UserAdrress {
+    full_name?: string,
+    phone?: string,
+    street?: string,
+    city?: string,
+    state?: string,
+    postal_code?: string,
+    country?: string,
+}
+
+export interface signin {
+    email: string,
+    password: string
+};
+
+export interface RegisterResponse {
+    msg: string,
+    status: boolean,
+
+};
+
+export interface Bagination {
+    offset: number,
+    limit: number
+};
+
+---------------------------------------------
+FILE: ./src/modules/user/user.controller.ts
+---------------------------------------------
+
+import { Request, Response } from "express";
+import { AuthRequest } from "../../middlware/auth";
+import { userService } from "./user.service";
+import { signin, Userinfos, UserUpdate } from "./user.type";
+import { signToken } from "../../utils/jwt";
+
+export const singUp = async (req: Request, res:Response) => {
+    const body : Userinfos = req.body;
+    // console.log(body)
+    const result = await userService.register(body);
+    res.json(result).status(Number(result.stat_code));
+    // res.json(body);
+}
+
+export const singIn = async (req: Request, res:Response) => {
+    const body : signin = req.body;
+    if (body.email && body.password) {
+        const data = await userService.checkIfUserExists(body);
+        if (data == null)
+            res.json("user with such credentials is not found").status(400);
+
+        const token = signToken(String(data?.user_id), String(data?.role));
+        // Attach cookie
+        res.cookie("token", token, {
+            httpOnly: true,      // cannot be accessed by JS
+            secure: false,       // true in production with HTTPS
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        res.json({data:data, token: token}).status(200);
+    }
+    else
+        res.json("email or password is missing").status(404);
+}
+
+
+export const logout = (req: Request, res: Response) => {
+    res.clearCookie("token", {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production",
+      });
+    return res.status(200).json({ msg: "Logged out" });
+};
+  
+// export const userInfos = async (req: Request, res: Response) => {
+//     const body : 
+// }
+
+export const getUsers = async (req: AuthRequest, res:Response) => {
+    if (req.user?.role == 'admin') {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = (page - 1) * limit;
+    
+        const users = await userService.getAllUsers(limit, offset);
+        res.json(users);
+    }
+    // res.json("khdaam");
+}
+
+export const getUsersDetails = async(req: AuthRequest, res: Response) => {
+    const id = req.user?.user_id;
+    if (id) {
+        const user = await userService.getUserDetails(id);
+        res.status(200).json(user);
+    }
+    else
+       res.status(400).json("id not found in url");
+}
+
+export const getUser = async (req: AuthRequest, res: Response) => {
+    const id = req.user?.user_id;
+    if (id) {
+        const user = await userService.getUser(id);
+        res.status(200).json(user);
+    }
+    else
+       res.status(400).json("id not found in url");
+}
+
+export const updateUser = async (req: AuthRequest, res: Response) => {
+    const id = req.user?.user_id;
+    if (id) {
+        const body = req.body;
+        const data = await userService.updateUser(id, body);
+    
+        res.json(data).status(202);
+    }
+    else
+        res.json("id not found in url").status(400);
+}
+
+export const updateUserAddressesInfos = async (req: AuthRequest, res: Response) => {
+    const id = Number(req.user?.user_id);
+    if (id) {
+        const body = req.body;
+        const data = await userService.updateUserAddresses(id, body);
+
+        res.status(200).json(data);
+    }
+}
+
+export const verify_email = async (req: Request, res: Response) => {
+
+    // last thing to work on in User APIs
+
+}
+
+
+
+---------------------------------------------
+FILE: ./src/modules/user/user.service.ts
+---------------------------------------------
+
+import { UUID } from "crypto";
+import { verifyPassword } from "../../utils/passwords";
+import { UserRepository } from "./user.repository";
+import { signin, User, UserAdrress, UserUpdate } from "./user.type";
+
+export class userService {
+
+    static async register(user_data: any): Promise<any> {
+        
+        const existing_user = await this.checkIfUserExists(user_data);
+        // console.log(user_data.city)
+        // console.log(existing_user);
+        if (existing_user) {
+            if (existing_user.email && existing_user.username == user_data.username)
+                return {msg: "Both email and username exists", status: false};
+            if (existing_user.username == user_data.username)
+                return {msg: "username already exists", status: false};
+            else if (existing_user.email)
+                return {msg: "email already exists", status: false};
+        } else {
+            const data = await UserRepository.create(user_data);
+            // console.log("user : ", data);
+
+            if (data?.user_id)
+                return {msg: "Client created succesfully", status: true, user_data: data, stat_code: 200};
+            else
+                return {msg: data.err_msg, status: false, stat_code: 422}
+        }
+
+        return {msg: "Some Thing went wrong", status: false, stat_code: 401};
+    }
+
+    static async checkIfUserExists(user_data: signin): Promise<User | null> {
+        const user = await UserRepository.findOne_email(user_data.email);
+        // console.log("user after retrieved : " ,user);
+        if (user?.password_hash){
+            const verify = await verifyPassword(user_data.password, user?.password_hash);
+            // console.log("does passoword matvh : ", verify);
+            if (user?.password_hash && verify){
+                // return {user_id:user.user_id, username:user.username, email:user.email, created_at:user.created_at};
+                return user;
+            }
+        }
+        return null;
+    }
+
+    static async getAllUsers(limit: number, offset: number):  Promise<{ users: User[] | null; total: number }>{
+
+        // const users = UserRepository.findall(limit, offset);
+        // const total = UserRepository.countall();
+        const [users, total] = await Promise.all([
+            UserRepository.findall(limit, offset),
+            UserRepository.countall()
+        ]);
+
+        return  { users, total: total ?? 0 };
+    }
+
+    static async updateUser(id: string, updates: UserUpdate) : Promise<User | null>{            
+        const data = await UserRepository.updateCredentials(id, updates);
+        return data || null;
+    }
+
+    static async updateUserAddresses(id: number, updates: UserAdrress) : Promise<any>{
+        const data = await UserRepository.updateAddress(id, updates);
+        return data || null;
+    }
+
+    static async getUserDetails(id: string): Promise<User | null> {
+        const data = await UserRepository.user_details(id);
+        return data || null;
+    }
+
+    static async getUser(id: string): Promise<User | null> {
+        const data = await UserRepository.findOne_id(id);
+        return data || null;
+    }
+
+
+    static async email_verification() {
+
+    }
+}
+
+---------------------------------------------
+FILE: ./src/modules/user/user.repository.ts
+---------------------------------------------
+
+import { QueryResult } from "pg";
+import pool from "../../db/config";
+import { UserQueries } from "./user.queries";
+import {address_id, role, User, UserAdrress, UserUpdate } from "./user.type";
+import { UUID } from "crypto";
+import { hashPassword } from "../../utils/passwords";
+
+export class UserRepository {
+    
+    static async countall(): Promise<number | null> {
+        
+        const countQuery = UserQueries.countall();
+        const total = await pool.query<{ total: number }>(countQuery);
+
+        return total.rows[0].total || null;
+    }
+
+    static async findall (limit: number, offset: number): Promise<User[] | null> {
+        const query = UserQueries.findAll(offset, limit);
+        const users : QueryResult<User> = await pool.query(query);
+        return users.rows || null;
+    }
+    
+    static async findOne_email (email : string): Promise<User | null> {
+        const query = UserQueries.findByEmail(email);
+        const user : QueryResult<User> = await pool.query(query);
+
+        return user.rows[0] || null;
+    }
+    
+    static async findOne_id (id : string): Promise<User | null> {
+        const query = UserQueries.findById(id);
+        const user : QueryResult<User> = await pool.query(query);
+
+        return user.rows[0] || null;
+    }
+
+    static async findOne_username (username : string): Promise<User> {
+        const query = UserQueries.findByUsername(username);
+        const user : QueryResult<User> = await pool.query(query);
+        return user.rows[0] || null;
+    }
+
+    static async user_details (id: string) : Promise<any> {
+        const query = UserQueries.userDetails(id);
+        const user_details : QueryResult<any> = await pool.query(query);
+        console.log(user_details.rows);
+        return user_details.rows[0] || null;
+    }
+
+    static async create (user_data: any): Promise<any | null> {
+        const hashed_password = await hashPassword(user_data.password);
+        console.log(user_data)
+        const result = await pool.query(`
+            SELECT * FROM create_user_with_details(
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+            )`,
+            [
+                user_data.email,
+                user_data.username,
+                hashed_password,
+                user_data.role,
+                user_data.full_name,
+                user_data.phone,
+                user_data.street,
+                user_data.city,
+                user_data.state,
+                user_data.postal_code,
+                user_data.country
+            ]
+        );
+        console.log(result);
+        return result.rows[0];
+
+            //  Logic without create_users_with_details
+
+        //      ||           ||         ||          ||
+        //      \/           \/         \/          \/
+
+        // const userquery = UserQueries.createUser(user_data.email, user_data.username, user_data.password);
+        // const user : QueryResult<User> = await pool.query(userquery);
+        // const user_id = user.rows[0].user_id;
+        // if (!user_id)
+        //     return null;
+
+        // const rolequery = UserQueries.createUserRole(user_data.role, user_id);
+        // const role : QueryResult<role> = await pool.query(rolequery);
+
+        // const addressquery = UserQueries
+        // .createUserAddress(user_data.full_name, user_data.phone, user_data.street,
+        // user_data.city,user_data.state,user_data.postal_code, user_data.country, user_id);
+        // const address : QueryResult<address_id> = await pool.query(addressquery);
+
+        // if (!role || !address)
+        //     return null;
+
+        // return {user: user.rows[0], role: role.rows[0].roles, address: address.rows[0].address_id};
+    }
+    
+    static async updateAddress (id: number, data: UserAdrress) : Promise<any> {
+        const query = UserQueries.updateUserAddress(id, data);
+        const response : QueryResult<any> = await pool.query(query);
+        return response.rows[0] || null;
+    }
+
+    static async updateCredentials (id: string, data: UserUpdate): Promise<User | null> {
+        if (data.password)
+            data.password = await hashPassword(data.password);
+        const query = UserQueries.updateUser(id, data);
+        const resposne : QueryResult<User> = await pool.query(query);
+        return resposne.rows[0] || null;
+    }
+
+    static async delete () {
+
+    }
+}
+
+---------------------------------------------
+FILE: ./src/modules/user/user.queries.ts
+---------------------------------------------
+
+import SQL, { SQLStatement } from "sql-template-strings";
+import { UserAdrress, Userinfos, UserUpdate } from "./user.type";
+
+export const UserQueries = {
+
+    countall: () => SQL`SELECT COUNT(*) AS total from users;`,
+
+    findById: (id: string) => SQL`SELECT * FROM users WHERE user_id = ${id};`,
+
+    findByEmail: (email: string) => SQL`SELECT *, ur.roles as role FROM users u JOIN user_role ur on u.user_id=ur.user_id WHERE u.email = ${email};`,
+
+    findByUsername: (username: string) => SQL`SELECT * FROM users WHERE username = ${username};`,
+
+    findAll: (offset: number, limit: number) => SQL`SELECT * FROM users ORDER BY created_at LIMIT ${limit} OFFSET ${offset};`,
+
+    userDetails: (id: string) => SQL`
+        SELECT
+            u.user_id,
+            u.username,
+            u.email,
+            u.email_verified,
+            u.created_at as Join_Date,
+            json_build_object(
+                'roles', r.roles
+            ) AS role,
+            json_build_object(
+                'address_id', a.address_id,
+                'full_name', a.full_name,
+                'phone', a.phone,
+                'street', a.street,
+                'city', a.city,
+                'state', a.state,
+                'postal_code', a.postal_code,
+                'country', a.country,
+                'created_at', a.created_at
+            ) AS address
+        FROM
+            users u
+        JOIN user_role r ON u.user_id = r.user_id
+        JOIN addresses a ON u.user_id = r.user_id
+        WHERE
+            u.user_id = ${id};
+    `,
+
+    createUser: (email: string, username: string, password: string) => SQL`
+        INSERT INTO users (email, username, password_hash) 
+        VALUES (${email}, ${username}, ${password})
+        RETURNING *;
+    `,
+    
+    createUserRole: (role: Userinfos, userId: string) => SQL`
+        INSERT INTO user_role (user_id, roles)
+        VALUES (${userId}, ${role})
+        RETURNING roles;
+    `,
+
+    updateUserRole: (userId: string, role: string) => SQL`
+        UPDATE user_role
+        SET roles = ${role}
+        WHERE user_id = ${userId};
+    `,
+
+    createUserAddress: (full_name: string,
+        phone: string,
+        street: string,
+        city: string,
+        state: string,
+        postal_code: string,
+        country: string,
+        userId: string) => SQL`
+        INSERT INTO addresses (user_id, full_name, phone, street, city, state, postal_code, country)
+        VALUES (${userId}, ${full_name}, ${phone}, ${street}, ${city}, ${state}, ${postal_code}, ${country})
+        RETURNING address_id;
+    `,
+
+    updateUserAddress: (id: number, data: UserAdrress) => {
+        const query = SQL`UPDATE addresses SET `;
+        const fields: SQLStatement[] = [];
+
+        if (data.full_name) fields.push(SQL`full_name = ${data.full_name}`);
+        if (data.city) fields.push(SQL`city = ${data.city}`);
+        if (data.country) fields.push(SQL`country = ${data.country}`);
+        if (data.phone) fields.push(SQL`phone = ${data.phone}`);
+        if (data.postal_code) fields.push(SQL`postal_code = ${data.postal_code}`);
+        if (data.state) fields.push(SQL`state = ${data.state}`);
+        if (data.street) fields.push(SQL`street = ${data.street}`);
+        if (fields.length > 0) fields.push(SQL`updated_at = NOW()`);
+
+        fields.forEach((field, i) => {
+            if (i > 0) query.append(SQL`, `);
+            query.append(field);
+        });
+        query.append(SQL` WHERE address_id = ${id} RETURNING *;`);
+        return query;
+    },
+
+    updateUser: (id: string, data: UserUpdate) => {
+        const query = SQL`UPDATE users SET `;
+        const fields: SQLStatement[] = [];
+    
+        if (data.email) {
+            fields.push(SQL`email = ${data.email}`);
+            fields.push(SQL`email_verified = FALSE`);
+        }
+        if (data.password) fields.push(SQL`password_hash = ${data.password}`);
+        if (data.username) fields.push(SQL`username = ${data.username}`)
+        if (fields.length > 0) fields.push(SQL`updated_at = NOW()`);
+
+        // query.append(fields.join(", "));
+        fields.forEach((field, i) => {
+            if (i > 0) query.append(SQL`, `);
+            query.append(field);
+        });
+        query.append(SQL` WHERE user_id = ${id} RETURNING *;`)
+
+        return query;
+    },
+
+    deleteUser: (id: string) => SQL`DELETE FROM users WHERE user_id = ${id};`
+}
+
+---------------------------------------------
+FILE: ./src/app.ts
+---------------------------------------------
+
+import express from "express";
+import morgan from "morgan";
+import routes from "./routes";
+import cookieParser from "cookie-parser";
+import paymentRoutes from "./routes/payment.routes"
+import { stripeWebhookController } from "./modules/payment/stripeWebhook.controller";
+
+const app = express();
+
+app.use((req, res, next) => {
+    console.log("REQUEST →", req.method, req.url);
+    next();
+  });
+  
+app.post(
+    "/api/payments/webhooks/stripe",
+    express.raw({ type: "application/json" }),
+    stripeWebhookController.handleStripeWebhook
+);
+  
+
+
+// Middlewares
+app.use(cookieParser());
+app.use(morgan("dev"));
+app.use(express.json());
+
+// Routes
+app.use("/api", routes);
+
+export default app;
+
+
+---------------------------------------------
+FILE: ./src/validation/user.schema.ts
+---------------------------------------------
+
+import {email, z} from "zod";
+
+const roles = ["costumer", "admin", 'manager', 'seller', 'driver'];
+
+export const SingUp = z.object({
+    username: z.string().min(3).max(12),
+    email: z.email(),
+    password: z.string().min(6),
+    role: z.enum(roles),
+    full_name: z.string(),
+    phone: z.string(),
+    city: z.string(),
+    state: z.string(),
+    street: z.string(),
+    postal_code: z.string(),
+    country: z.string()
+});
+
+export const singIn = z.object({
+    email: z.email(),
+    password: z.string().min(6)
+});
+
+export const updateUserCredentials = z.object({
+    email: z.email(),
+    username: z.string().min(3).max(12).optional(),
+    password: z.string().min(6)
+});
+
+export const updateUserAddress = z.object({
+    full_name: z.string(),
+    phone: z.string(),
+    city: z.string(),
+    state: z.string(),
+    street: z.string(),
+    postal_code: z.string(),
+    country: z.string()
+})
+
+---------------------------------------------
+FILE: ./src/validation/order.schema.ts
+---------------------------------------------
+
+import z from "zod";
+
+export const createOrderSchema = z.object({
+    items: z.array(
+      z.object({
+        product_id: z.string(),
+        quantity: z.number().int().positive(),
+      })
+    ).min(1, "Order must contain at least one item"),
+    shipping_address_id: z.number().positive(),
+});
+
+export const modifyOrderSchema = z.object({
+    items: z.array(
+      z.object({
+        product_id: z.string(),
+        quantity: z.number().int().positive(),
+      })
+    ).min(1, "Order must contain at least one item"),
+});
+
+
+
+---------------------------------------------
+FILE: ./src/validation/product.schema.ts
+---------------------------------------------
+
+import z from "zod";
+
+export const product = z.object({
+    category_id: z.number().positive(),
+    name: z.string().min(5).max(60),
+    description: z.string().min(20).max(500),
+    price: z.number().positive(),
+    attributes: z.json().optional(),
+    stock: z.number().optional().default(0)
+})
+
+export const updateProduct = z.object({
+    category_id: z.number().positive().optional(),
+    name: z.string().min(5).max(60).optional(),
+    description: z.string().min(20).max(500).optional(),
+    price: z.number().positive().optional(),
+    attributes: z.json().optional(),
+    stock: z.number().nonnegative().optional()
+})
+
+---------------------------------------------
+FILE: ./src/utils/jwt.ts
+---------------------------------------------
+
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey"; // put in .env
+
+export const signToken = (user_id: string, role: string) => {
+  return jwt.sign({ user_id, role }, JWT_SECRET, { expiresIn: "7d" });
+};
+
+export const verifyToken = (token: string) => {
+  return jwt.verify(token, JWT_SECRET) as { user_id: string, role: string };
+};
+
+
+---------------------------------------------
+FILE: ./src/utils/passwords.ts
+---------------------------------------------
+
+import argon2 from "argon2";
+
+export async function hashPassword(password: string): Promise<string> {
+  return await argon2.hash(password);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return await argon2.verify(hash, password);
+}
+
+
+---------------------------------------------
+FILE: ./src/server.ts
+---------------------------------------------
+
+import { config } from "dotenv";
+config();
+
+import app from "./app";
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
+
+
+---------------------------------------------
+FILE: ./src/routes/order.routes.ts
+---------------------------------------------
+
+import { Router } from "express";
+import { validateCredentials, validateSerialId, validateUUID } from "../middlware/validate";
+import { auth } from "../middlware/auth";
+import { ordreController } from "../modules/order/order.controller";
+import { createOrderSchema, modifyOrderSchema } from "../validation/order.schema";
+
+
+const router = Router();
+
+router.get('/:id', auth, validateUUID,ordreController.getOrder)
+router.post("/create",auth, validateCredentials(createOrderSchema) ,ordreController.createOrder);
+router.put("/modify/:id",auth, validateUUID, validateCredentials(modifyOrderSchema),ordreController.modifyOrder);
+router.put("/modify/address/:id",auth, validateUUID, ordreController.modifyOrder_address);
+router.delete("/delete_order/:id",auth, validateUUID, ordreController.deleteOrder);
+router.delete("/delete_product/:id",auth, validateUUID, ordreController.deleteProduct);
+router.get("/track/:id", ordreController.trackOrder);
+
+export default router;
+
+---------------------------------------------
+FILE: ./src/routes/index.ts
+---------------------------------------------
+
+import { Router } from "express";
+import userRoutes from "./user.routes";
+import productRoutes from "./product.routes"
+import orderRoutes from "./order.routes"
+import paymentRoutes from "./payment.routes";
+
+const router = Router();
+
+router.use("/users", userRoutes);
+router.use("/products", productRoutes);
+router.use("/orders", orderRoutes);
+router.use("/payments", paymentRoutes);
+
+
+export default router;
+
+
+---------------------------------------------
+FILE: ./src/routes/product.routes.ts
+---------------------------------------------
+
+import { Router } from "express";
+import { validateCredentials, validateSerialId, validateUUID } from "../middlware/validate";
+import { productController } from "../modules/product/product.controller";
+import { auth } from "../middlware/auth";
+import { product, updateProduct } from "../validation/product.schema";
+
+const router = Router();
+
+// /     ---> all products
+// /user ---> user's products
+// /:id  ---> someone's products
+
+
+router.get("/", auth, productController.products);
+router.get("/my", productController.userProducts);
+router.get("/:id", productController.othersProducts);
+router.post("/create", auth, validateCredentials(product) ,productController.newProducts);
+router.put("/modify/:id", auth , validateUUID, validateCredentials(updateProduct), productController.modifyProduct);
+router.delete("/delete/:id", auth , validateUUID, productController.deleteProduct);
+
+// this route needs orders table
+// router.get("analyze", );
+
+export default router;
+
+
+---------------------------------------------
+FILE: ./src/routes/user.routes.ts
+---------------------------------------------
+
+import { Router } from "express";
+import * as userController from "../modules/user/user.controller";
+import { validateCredentials, validateSerialId, validateUUID } from "../middlware/validate";
+import { singIn, SingUp, updateUserAddress, updateUserCredentials } from "../validation/user.schema";
+import { auth } from "../middlware/auth";
+
+const router = Router();
+
+// Public routes
+router.post("/signin", validateCredentials(singIn), userController.singIn);  // use POST, not GET, for credentials
+router.post("/signup", validateCredentials(SingUp), userController.singUp);
+router.post("/logout", auth, userController.logout); // only logged-in user can logout
+router.post("/email_verification", userController.verify_email);
+
+// Protected routes (must be authenticated via JWT cookie)
+router.get("/", auth, userController.getUsers);
+
+// More specific route first
+router.get("/details/:id", auth, validateUUID, userController.getUsersDetails);
+
+// Get single user by id (you can also check here that req.user.user_id === params.id if needed)
+router.get("/:id", auth, validateUUID, userController.getUser);
+
+// Update address: id is a SERIAL (number)
+router.put(
+  "/address/:id",
+  auth,
+  validateSerialId,
+  validateCredentials(updateUserAddress),
+  userController.updateUserAddressesInfos
+);
+
+// Update credentials: id is UUID
+router.put(
+  "/credentials/:id",
+  auth,
+  validateUUID,
+  validateCredentials(updateUserCredentials),
+  userController.updateUser
+);
+
+export default router;
+
+
+---------------------------------------------
+FILE: ./src/routes/payment.routes.ts
+---------------------------------------------
+
+// src/routes/payment.routes.ts
+import express, { Router } from "express";
+import { auth } from "../middlware/auth";
+import { validateUUID } from "../middlware/validate";
+import { paymentController } from "../modules/payment/payment.controller";
+import { stripeWebhookController } from "../modules/payment/stripeWebhook.controller";
+
+const router = Router();
+
+/**
+ * Create Stripe PaymentIntent for an order (checkout start)
+ * Body: { order_id: string, method_id: number }
+ */
+router.post("/checkout", auth, paymentController.createCheckoutSession);
+
+/**
+ * Get payment details by internal payment_id
+ * GET /api/payments/:id
+ */
+router.get("/:id", auth, validateUUID, paymentController.getPaymentById);
+
+/**
+ * Get payment details by order_id
+ * GET /api/payments/order/:orderId
+ */
+router.get(
+  "/order/:id",
+  auth,
+  validateUUID,
+  paymentController.getPaymentByOrderId
+);
+
+
+export default router;
+
+
+---------------------------------------------
+FILE: ./src/middlware/validate.ts
+---------------------------------------------
+
+import { ZodObject } from "zod";
+import { Request, Response, NextFunction } from "express";
+import isUUID from "uuid-validate";
+
+export const validateCredentials = (schema: ZodObject) => (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.body);
+
+    if (!result.success) {
+        return res.json({error: result.error.flatten()}).status(400);
+    }
+    req.body = result.data;
+    next();
+}
+
+export const validateUUID = (req: Request, res: Response, next: NextFunction) => {
+    const { id } = req.params;
+  
+    if (!isUUID(id)) {
+      return res.status(400).json({ error: "Invalid UUID format" });
+    }
+  
+    next();
+  };
+  
+  export const validateSerialId = (req: Request, res: Response, next: NextFunction) => {
+    const { id } = req.params;
+  
+    const num = Number(id);
+    if (!Number.isInteger(num) || num <= 0) {
+      return res.status(400).json({ error: "Invalid serial ID" });
+    }
+  
+    next();
+  };
+  
+
+---------------------------------------------
+FILE: ./src/middlware/auth.ts
+---------------------------------------------
+
+import { Request, Response, NextFunction } from "express";
+import { verifyToken } from "../utils/jwt";
+
+export interface AuthRequest extends Request {
+  user?: {
+    user_id: string;
+    role: string;
+  };
+}
+
+export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
+  // console.log(req);
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).json({ msg: "Not authenticated" });
+  }
+
+  try {
+
+    const decoded = verifyToken(token); // { user_id, role }
+    req.user = {
+      user_id: decoded.user_id,
+      role: decoded.role,
+    }; // ✅ initialize object
+
+    next();
+  } catch (err) {
+    return res.status(401).json({ msg: "Invalid or expired token" });
+  }
+};
+
+
+---------------------------------------------
+FILE: ./src/db/config.ts
+---------------------------------------------
+
+import { Pool } from "pg";
+
+const pool = new Pool({
+  host: "localhost",     // ✅ You're connecting from your local machine
+  port: 5342,            // ✅ The host port you exposed above
+  database: "myapp",
+  user: "dbuser",
+  password: "dbpassword",
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+export default pool;
+
+
+---------------------------------------------
+FILE: ./schema.sql
+---------------------------------------------
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- AUTH SCHEMA
+CREATE SCHEMA auth;
+
+CREATE TABLE auth.users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(50) UNIQUE NOT NULL,
+    email_verified BOOLEAN DEFAULT false,
+    username VARCHAR(20) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE auth.user_role (
+    user_id UUID REFERENCES auth.user(user_id) on DELETE CASCADE,
+    roles TEXT NOT NULL CHECK (roles IN ('costumer', 'admin', 'manager')),
+    UNIQUE(user_id, roles)
+);
+
+
+CREATE TABLE auth.addresses (
+  address_id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(user_id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  street TEXT NOT NULL,
+  city TEXT NOT NULL,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+
+-- register SCHEMA
+
+CREATE SCHEMA register;
+
+CREATE TABLE register.categories (
+  category_id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE register.products (
+  product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_id INT REFERENCES register.categories(category_id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+  attributes JSONB,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE register.product_inventory (
+  product_id UUID PRIMARY KEY REFERENCES register.products(product_id) ON DELETE CASCADE,
+  stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  last_updated TIMESTAMPTZ DEFAULT now()
+);
+
+--- Sales schema
+
+CREATE SCHEMA sales;
+
+CREATE TYPE sales.order_status as ENUM ('pending','paid','shipped','delivered','cancelled');
+
+CREATE TABLE sales.orders (
+    order_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(user_id),
+    shipping_addresss_id REFERENCES auth.addresses(address_id),
+    total NUMERIC(10,2),
+    status sales.order_status DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE sales.order_items (
+    order_id UUID REFERENCES sales.orders(order_id) ON ,
+    product_id UUID REFERENCES register.products(product_id),
+    quantity INT check (quantity > 0),
+    price NUMERIC(10, 2),
+    total NUMERIC(10, 2) generated always as (quantity * price) stored,
+    PRIMARY KEY(order_id, product_id)
+);
+
+--- payment schema
+
+CREATE SCHEMA payments;
+
+CREATE TYPE payments.payment_status AS ENUM ('pending','completed','failed');
+
+CREATE TABLE payments.payment_methods (
+    method_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE payments.payments (
+    payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID UNIQUE REFERENCES sales.orders(order_id) on delete set NULL,
+    method_id INT REFERENCES payments.payment_method(method_id),
+    amount NUMERIC(10, 2) not NULL check (amount >= 0),
+    status payments.payment_status DEFAULT 'pending',
+    DEFAULT JSONB,
+    paid_at TIMESTAMP
+);
+
+
+--- shipping schema
+
+CREATE SCHEMA shipping;
+
+CREATE TABLE shipping.shipment_statuses (
+    status_id SERIAL PRIMARY KEY,
+    status TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE shipping.shipments (
+    shipment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID UNIQUE REFERENCES sales.orders(order_id),
+    status_id INT REFERENCES shipping.shipment_statuses(status_id),
+      tracking_number TEXT,
+    shipped_at TIMESTAMP,
+    delivered_at TIMESTAMP
+);
+
+---------------------------------------------
+FILE: ./injectFunctions.sh
+---------------------------------------------
+
+for f in ./migrations/functions/*.sql; do
+    echo "Running $f ..."
+    docker exec -i app_db psql -U dbuser -d myapp < "$f"
+done
+
+---------------------------------------------
+FILE: ./all.sh
+---------------------------------------------
+
+#!/bin/bash
+
+OUTPUT="project_dump.txt"
+
+echo "📦 Dumping project structure and contents..." > $OUTPUT
+echo "" >> $OUTPUT
+
+# 1. Show tree
+echo "===== PROJECT TREE =====" >> $OUTPUT
+tree -I node_modules >> $OUTPUT
+echo "" >> $OUTPUT
+
+# 2. Dump all files (except heavy folders)
+echo "===== FILE CONTENTS =====" >> $OUTPUT
+
+# List of folders to ignore
+IGNORE_DIRS="node_modules|stripe|backups|monitoring|tests|dist|build"
+
+# Loop through all files except ignored ones
+find . -type f | grep -Ev "$IGNORE_DIRS" | while read FILE; do
+    echo "" >> $OUTPUT
+    echo "---------------------------------------------" >> $OUTPUT
+    echo "FILE: $FILE" >> $OUTPUT
+    echo "---------------------------------------------" >> $OUTPUT
+    echo "" >> $OUTPUT
+    cat "$FILE" >> $OUTPUT
+    echo "" >> $OUTPUT
+done
+
+echo "✅ DONE. Output saved into $OUTPUT"
+
