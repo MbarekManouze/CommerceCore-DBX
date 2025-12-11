@@ -19,21 +19,5 @@ services:
       retries: 5
       start_period: 30s
 
-  # app:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: api_app
-  #   restart: always
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   environment:
-  #     NODE_ENV: development
-  #     DATABASE_URL: postgres://dbuser:dbpassword@db:5432/myapp
-  #   volumes:
-  #     - .:/usr/src/app
-  #   command: npm run dev
-
 volumes:
   db_data:
