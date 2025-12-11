@@ -28,3 +28,4 @@ find . -type f | grep -Ev "$IGNORE_DIRS" | while read FILE; do
 done
 
 echo "✅ DONE. Output saved into $OUTPUT"
+

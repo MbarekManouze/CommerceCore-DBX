@@ -5,14 +5,12 @@ AS $$
 DECLARE
     v_row_id TEXT;
 BEGIN
-    -- Try to derive a primary key field called 'id' or '..._id'
     IF TG_OP = 'INSERT' THEN
         v_row_id := COALESCE(
-            (NEW.id)::TEXT,
-            (NEW.user_id)::TEXT,
-            (NEW.order_id)::TEXT,
-            (NEW.payment_id)::TEXT,
-            NULL
+            to_jsonb(NEW)->>'id',
+            to_jsonb(NEW)->>'user_id',
+            to_jsonb(NEW)->>'order_id',
+            to_jsonb(NEW)->>'payment_id'
         );
         INSERT INTO audit_logs(table_name, operation, row_id, new_data)
         VALUES (TG_TABLE_NAME, TG_OP, v_row_id, to_jsonb(NEW));
@@ -20,11 +18,10 @@ BEGIN
 
     ELSIF TG_OP = 'UPDATE' THEN
         v_row_id := COALESCE(
-            (NEW.id)::TEXT,
-            (NEW.user_id)::TEXT,
-            (NEW.order_id)::TEXT,
-            (NEW.payment_id)::TEXT,
-            NULL
+            to_jsonb(NEW)->>'id',
+            to_jsonb(NEW)->>'user_id',
+            to_jsonb(NEW)->>'order_id',
+            to_jsonb(NEW)->>'payment_id'
         );
         INSERT INTO audit_logs(table_name, operation, row_id, old_data, new_data)
         VALUES (TG_TABLE_NAME, TG_OP, v_row_id, to_jsonb(OLD), to_jsonb(NEW));
@@ -32,11 +29,10 @@ BEGIN
 
     ELSIF TG_OP = 'DELETE' THEN
         v_row_id := COALESCE(
-            (OLD.id)::TEXT,
-            (OLD.user_id)::TEXT,
-            (OLD.order_id)::TEXT,
-            (OLD.payment_id)::TEXT,
-            NULL
+            to_jsonb(OLD)->>'id',
+            to_jsonb(OLD)->>'user_id',
+            to_jsonb(OLD)->>'order_id',
+            to_jsonb(OLD)->>'payment_id'
         );
         INSERT INTO audit_logs(table_name, operation, row_id, old_data)
         VALUES (TG_TABLE_NAME, TG_OP, v_row_id, to_jsonb(OLD));
