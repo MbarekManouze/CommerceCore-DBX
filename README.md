@@ -261,5 +261,5 @@ A real-world payment lifecycle.
 | Orders         | ✔ Transactional SQL done             |
 | Payments       | ✔ Stripe checkout + webhook          |
 | DBA Features   | ✔ Monitoring, Views, Functions       |
-|                |   Triggers, Materialized Views       |
-|                |   Logs Tracing, Transactions, ...etc |
+                     Triggers, Materialized Views       
+                     Logs Tracing, Transactions, ...etc 
