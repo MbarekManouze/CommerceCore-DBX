@@ -36,7 +36,7 @@ static async handleStripeWebhook(req: Request, res: Response) {
 
         if (paymentStatus === "paid") {
             // Mark payment as completed + order as paid
-            await paymentService.markPaymentCompletedBySession('cs_test_a10dt7QcSZsHpVbLbQg2VVwUqawrJuJZD1XTgU0ze5pAxO5CKpmOGiY7fo');
+            await paymentService.markPaymentCompletedBySession(sessionId);
         }
 
         break;
